@@ -1,0 +1,659 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: Smart Chess Board API
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: game
+    description: Chess game operations
+  - name: games
+    description: Multiplayer game sessions
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      description: Returns server health status
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  /game/state:
+    get:
+      operationId: getGameState
+      tags: [game]
+      summary: Get current local game state
+      description: Returns the current board state, move history, and captured pieces
+      responses:
+        "200":
+          description: Current game state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GameState"
+
+  /game/move:
+    post:
+      operationId: makeMove
+      tags: [game]
+      summary: Make a move (local game)
+      description: Submit a move in UCI format (e.g. e2e4)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MakeMoveBody"
+      responses:
+        "200":
+          description: Move result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MoveResult"
+        "400":
+          description: Invalid move
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /game/reset:
+    post:
+      operationId: resetGame
+      tags: [game]
+      summary: Reset local game
+      description: Resets the game to the starting position
+      responses:
+        "200":
+          description: Game reset
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GameState"
+
+  /game/undo:
+    post:
+      operationId: undoLastMove
+      tags: [game]
+      summary: Undo the last local move
+      description: Takes back the latest local move so the player can retry it during review
+      responses:
+        "200":
+          description: Updated game state after undo
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GameState"
+        "400":
+          description: No move to undo
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /game/legal-moves:
+    get:
+      operationId: getLegalMoves
+      tags: [game]
+      summary: Get legal moves for a square (local game)
+      parameters:
+        - in: query
+          name: square
+          required: true
+          schema:
+            type: string
+          description: Chess square (e.g. e2)
+      responses:
+        "200":
+          description: Legal moves
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LegalMovesResponse"
+
+  /game/history:
+    get:
+      operationId: getGameHistory
+      tags: [game]
+      summary: Get full move history
+      responses:
+        "200":
+          description: Move history
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GameHistory"
+
+  /analyze:
+    post:
+      operationId: analyzePosition
+      tags: [game]
+      summary: Analyze a chess position with Stockfish
+      description: Returns best move, evaluation score, top moves, and move quality classification
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnalyzeBody"
+      responses:
+        "200":
+          description: Analysis result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnalysisResult"
+        "400":
+          description: Invalid FEN
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /games:
+    get:
+      operationId: listGames
+      tags: [games]
+      summary: List open games
+      description: Returns games waiting for a second player
+      responses:
+        "200":
+          description: List of open games
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GameSessionList"
+    post:
+      operationId: createGame
+      tags: [games]
+      summary: Create a new multiplayer game
+      description: Creates a new game session. Requires authentication.
+      responses:
+        "200":
+          description: Created game session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GameSession"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /games/{id}:
+    get:
+      operationId: getGame
+      tags: [games]
+      summary: Get a game by ID
+      description: Returns a game session with current board state
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Game session with state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GameSessionWithState"
+        "404":
+          description: Game not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /games/{id}/join:
+    post:
+      operationId: joinGame
+      tags: [games]
+      summary: Join a game as the second player
+      description: Joins an open game. Requires authentication.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Updated game session with state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GameSessionWithState"
+        "400":
+          description: Cannot join game
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Game not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /games/{id}/move:
+    post:
+      operationId: makeGameMove
+      tags: [games]
+      summary: Make a move in a multiplayer game
+      description: Submit a move. Requires authentication and it must be your turn.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MakeMoveBody"
+      responses:
+        "200":
+          description: Move result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MoveResult"
+        "400":
+          description: Invalid move or not your turn
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Not a player in this game
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /games/{id}/legal-moves:
+    get:
+      operationId: getGameLegalMoves
+      tags: [games]
+      summary: Get legal moves for a square in a multiplayer game
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: square
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Legal moves
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LegalMovesResponse"
+
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+
+    ChessPiece:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [p, n, b, r, q, k]
+        color:
+          type: string
+          enum: [w, b]
+      required:
+        - type
+        - color
+
+    MoveEntry:
+      type: object
+      properties:
+        from:
+          type: string
+        to:
+          type: string
+        san:
+          type: string
+        piece:
+          type: string
+        color:
+          type: string
+          enum: [w, b]
+        captured:
+          type: string
+          nullable: true
+        promotion:
+          type: string
+          nullable: true
+        moveNumber:
+          type: integer
+      required:
+        - from
+        - to
+        - san
+        - piece
+        - color
+        - moveNumber
+
+    CapturedPieces:
+      type: object
+      properties:
+        white:
+          type: array
+          items:
+            type: string
+        black:
+          type: array
+          items:
+            type: string
+      required:
+        - white
+        - black
+
+    GameState:
+      type: object
+      properties:
+        fen:
+          type: string
+          description: Current position in FEN notation
+        turn:
+          type: string
+          enum: [w, b]
+        moveHistory:
+          type: array
+          items:
+            $ref: "#/components/schemas/MoveEntry"
+        capturedPieces:
+          $ref: "#/components/schemas/CapturedPieces"
+        isCheck:
+          type: boolean
+        isCheckmate:
+          type: boolean
+        isDraw:
+          type: boolean
+        isStalemate:
+          type: boolean
+        isGameOver:
+          type: boolean
+        lastMove:
+          type: object
+          nullable: true
+          properties:
+            from:
+              type: string
+            to:
+              type: string
+          required:
+            - from
+            - to
+        arduinoConnected:
+          type: boolean
+      required:
+        - fen
+        - turn
+        - moveHistory
+        - capturedPieces
+        - isCheck
+        - isCheckmate
+        - isDraw
+        - isStalemate
+        - isGameOver
+        - arduinoConnected
+
+    GameSession:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        whitePlayerId:
+          type: string
+        blackPlayerId:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [waiting, active, completed, abandoned]
+        fen:
+          type: string
+        winner:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - whitePlayerId
+        - status
+        - fen
+        - createdAt
+        - updatedAt
+
+    GameSessionWithState:
+      allOf:
+        - $ref: "#/components/schemas/GameSession"
+        - $ref: "#/components/schemas/GameState"
+
+    GameSessionList:
+      type: object
+      properties:
+        games:
+          type: array
+          items:
+            $ref: "#/components/schemas/GameSession"
+      required:
+        - games
+
+    MakeMoveBody:
+      type: object
+      properties:
+        move:
+          type: string
+          description: Move in UCI format (e.g. e2e4) or SAN format
+        source:
+          type: string
+          enum: [ui, arduino]
+          default: ui
+      required:
+        - move
+
+    MoveResult:
+      type: object
+      properties:
+        success:
+          type: boolean
+        gameState:
+          $ref: "#/components/schemas/GameState"
+        move:
+          $ref: "#/components/schemas/MoveEntry"
+      required:
+        - success
+        - gameState
+
+    LegalMovesResponse:
+      type: object
+      properties:
+        square:
+          type: string
+        moves:
+          type: array
+          items:
+            type: string
+      required:
+        - square
+        - moves
+
+    GameHistory:
+      type: object
+      properties:
+        moves:
+          type: array
+          items:
+            $ref: "#/components/schemas/MoveEntry"
+        totalMoves:
+          type: integer
+      required:
+        - moves
+        - totalMoves
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+      required:
+        - error
+        - message
+
+    AnalyzeBody:
+      type: object
+      properties:
+        fen:
+          type: string
+          description: Position in FEN notation
+        depth:
+          type: integer
+          default: 15
+          description: Analysis depth (1-20)
+        previousFen:
+          type: string
+          nullable: true
+          description: FEN before the last move, for move quality evaluation
+        lastMove:
+          type: string
+          nullable: true
+          description: The last move played in UCI format (e.g. e2e4), for move quality evaluation
+      required:
+        - fen
+
+    TopMove:
+      type: object
+      properties:
+        move:
+          type: string
+        evaluation:
+          type: string
+        san:
+          type: string
+      required:
+        - move
+        - evaluation
+        - san
+
+    MoveQuality:
+      type: string
+      enum: [best, excellent, good, inaccuracy, mistake, blunder]
+
+    AnalysisResult:
+      type: object
+      properties:
+        bestMove:
+          type: string
+          description: Best move in UCI format (e.g. e2e4)
+        bestMoveSan:
+          type: string
+          description: Best move in SAN format
+        evaluation:
+          type: string
+          description: Position evaluation (e.g. +0.45, -1.2, M3)
+        evaluationScore:
+          type: number
+          description: Numeric centipawn score (positive = white advantage)
+        depth:
+          type: integer
+        topMoves:
+          type: array
+          items:
+            $ref: "#/components/schemas/TopMove"
+        moveQuality:
+          $ref: "#/components/schemas/MoveQuality"
+          nullable: true
+        suggestion:
+          type: string
+          description: Human-readable suggestion for the position
+        playedMove:
+          type: string
+          description: Last move played in UCI format
+        playedMoveSan:
+          type: string
+          description: Last move played in SAN format
+        bestMoveBefore:
+          type: string
+          description: Engine best move before the last move was played, in UCI format
+        bestMoveBeforeSan:
+          type: string
+          description: Engine best move before the last move was played, in SAN format
+        centipawnLoss:
+          type: integer
+          description: Approximate centipawn loss compared with the best move
+        reviewTitle:
+          type: string
+          description: Chess.com-style short review title for the last move
+        reviewCommentary:
+          type: string
+          description: Coach-style explanation for the last move
+        isMate:
+          type: boolean
+          description: True if the position is a forced mate
+        mateIn:
+          type: integer
+          nullable: true
+          description: Number of moves to mate (positive = white wins)
+      required:
+        - bestMove
+        - bestMoveSan
+        - evaluation
+        - evaluationScore
+        - depth
+        - topMoves
+        - isMate

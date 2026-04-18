@@ -1,0 +1,421 @@
+}
+    res: {
+      "statusCode": 401
+    }
+    responseTime: 3
+[13:18:47.376] ERROR (26054): Failed to list games
+    err: {
+      "type": "_DrizzleQueryError",
+      "message": "Failed query: select \"id\", \"white_player_id\", \"black_player_id\", \"status\", \"fen\", \"winner\", \"created_at\", \"updated_at\" from \"chess_games\" where \"chess_games\".\"status\" = $1 order by \"chess_games\".\"created_at\"\nparams: waiting: connect ENETUNREACH 2a05:d018:135e:167b:915b:b56f:4f6b:b7c7:5432 - Local (:::0)",
+      "stack":
+          Error: Failed query: select "id", "white_player_id", "black_player_id", "status", "fen", "winner", "created_at", "updated_at" from "chess_games" where "chess_games"."status" = $1 order by "chess_games"."created_at"
+          params: waiting
+              at NodePgPreparedQuery.queryWithCache (/home/hello/Documents/chess test/chess-Board-hmd/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:73:11)
+              at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+              at async <anonymous> (/home/hello/Documents/chess test/chess-Board-hmd/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:154:19)
+              at async <anonymous> (/home/hello/Documents/chess test/chess-Board-hmd/artifacts/api-server/src/routes/games.ts:13:19)
+          caused by: Error: connect ENETUNREACH 2a05:d018:135e:167b:915b:b56f:4f6b:b7c7:5432 - Local (:::0)
+              at <anonymous> (/home/hello/Documents/chess test/chess-Board-hmd/node_modules/.pnpm/pg-pool@3.13.0_pg@8.20.0/node_modules/pg-pool/index.js:45:11)
+              at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+              at async <anonymous> (/home/hello/Documents/chess test/chess-Board-hmd/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:161:13)
+              at async NodePgPreparedQuery.queryWithCache (/home/hello/Documents/chess test/chess-Board-hmd/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:71:12)
+              at async <anonymous> (/home/hello/Documents/chess test/chess-Board-hmd/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:154:19)
+              at async <anonymous> (/home/hello/Documents/chess test/chess-Board-hmd/artifacts/api-server/src/routes/games.ts:13:19)
+      "query": "select \"id\", \"white_player_id\", \"black_player_id\", \"status\", \"fen\", \"winner\", \"created_at\", \"updated_at\" from \"chess_games\" where \"chess_games\".\"status\" = $1 order by \"chess_games\".\"created_at\"",
+      "params": [
+        "waiting"
+      ]
+    }
+[13:18:47.377] INFO (26054): request errored
+    req: {
+      "id": 6,
+      "method": "GET",
+      "url": "/api/games"
+    }
+    res: {
+      "statusCode": 500
+    }
+    responseTime: 4
+    err: {
+      "type": "Error",
+      "message": "failed with status code 500",
+      "stack":
+          Error: failed with status code 500
+              at onResFinished (/home/hello/Documents/chess test/chess-Board-hmd/node_modules/.pnpm/pino-http@10.5.0/node_modules/pino-http/logger.js:115:39)
+              at ServerResponse.onResponseComplete (/home/hello/Documents/chess test/chess-Board-hmd/node_modules/.pnpm/pino-http@10.5.0/node_modules/pino-http/logger.js:178:14)
+              at ServerResponse.emit (node:events:520:22)
+              at onFinish (node:_http_outgoing:1026:10)
+              at callback (node:internal/streams/writable:764:21)
+              at afterWrite (node:internal/streams/writable:708:5)
+              at afterWriteTick (node:internal/streams/writable:694:10)
+              at process.processTicksAndRejections (node:internal/process/task_queues:89:21)
+    }
+[13:18:47.512] INFO (26054): request completed
+    req: {
+      "id": 7,
+      "method": "POST",
+      "url": "/api/games"
+    }
+    res: {
+      "statusCode": 401
+    }
+    responseTime: 3
+[13:18:49.337] INFO (26054): request completed
+    req: {
+      "id": 8,
+      "method": "POST",
+      "url": "/api/games"
+    }
+    res: {
+      "statusCode": 401
+    }
+    responseTime: 3
+[13:18:49.740] INFO (26054): request completed
+    req: {
+      "id": 9,
+      "method": "POST",
+      "url": "/api/games"
+    }
+    res: {
+      "statusCode": 401
+    }
+    responseTime: 4
+[13:18:49.923] INFO (26054): request completed
+    req: {
+      "id": 10,
+      "method": "POST",
+      "url": "/api/games"
+    }
+    res: {
+      "statusCode": 401
+    }
+    responseTime: 3
+[13:18:52.400] ERROR (26054): Failed to list games
+    err: {
+      "type": "_DrizzleQueryError",
+      "message": "Failed query: select \"id\", \"white_player_id\", \"black_player_id\", \"status\", \"fen\", \"winner\", \"created_at\", \"updated_at\" from \"chess_games\" where \"chess_games\".\"status\" = $1 order by \"chess_games\".\"created_at\"\nparams: waiting: connect ENETUNREACH 2a05:d018:135e:167b:915b:b56f:4f6b:b7c7:5432 - Local (:::0)",
+      "stack":
+          Error: Failed query: select "id", "white_player_id", "black_player_id", "status", "fen", "winner", "created_at", "updated_at" from "chess_games" where "chess_games"."status" = $1 order by "chess_games"."created_at"
+          params: waiting
+              at NodePgPreparedQuery.queryWithCache (/home/hello/Documents/chess test/chess-Board-hmd/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:73:11)
+              at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+              at async <anonymous> (/home/hello/Documents/chess test/chess-Board-hmd/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:154:19)
+              at async <anonymous> (/home/hello/Documents/chess test/chess-Board-hmd/artifacts/api-server/src/routes/games.ts:13:19)
+          caused by: Error: connect ENETUNREACH 2a05:d018:135e:167b:915b:b56f:4f6b:b7c7:5432 - Local (:::0)
+              at <anonymous> (/home/hello/Documents/chess test/chess-Board-hmd/node_modules/.pnpm/pg-pool@3.13.0_pg@8.20.0/node_modules/pg-pool/index.js:45:11)
+              at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+              at async <anonymous> (/home/hello/Documents/chess test/chess-Board-hmd/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:161:13)
+              at async NodePgPreparedQuery.queryWithCache (/home/hello/Documents/chess test/chess-Board-hmd/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:71:12)
+              at async <anonymous> (/home/hello/Documents/chess test/chess-Board-hmd/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:154:19)
+              at async <anonymous> (/home/hello/Documents/chess test/chess-Board-hmd/artifacts/api-server/src/routes/games.ts:13:19)
+      "query": "select \"id\", \"white_player_id\", \"black_player_id\", \"status\", \"fen\", \"winner\", \"created_at\", \"updated_at\" from \"chess_games\" where \"chess_games\".\"status\" = $1 order by \"chess_games\".\"created_at\"",
+      "params": [
+        "waiting"
+      ]
+    }
+[13:18:52.401] INFO (26054): request errored
+    req: {
+      "id": 11,
+      "method": "GET",
+      "url": "/api/games"
+    }
+    res: {
+      "statusCode": 500
+    }
+    responseTime: 9
+    err: {
+      "type": "Error",
+      "message": "failed with status code 500",
+      "stack":
+          Error: failed with status code 500
+              at onResFinished (/home/hello/Documents/chess test/chess-Board-hmd/node_modules/.pnpm/pino-http@10.5.0/node_modules/pino-http/logger.js:115:39)
+              at ServerResponse.onResponseComplete (/home/hello/Documents/chess test/chess-Board-hmd/node_modules/.pnpm/pino-http@10.5.0/node_modules/pino-http/logger.js:178:14)
+              at ServerResponse.emit (node:events:520:22)
+              at onFinish (node:_http_outgoing:1026:10)
+              at callback (node:internal/streams/writable:764:21)
+              at afterWrite (node:internal/streams/writable:708:5)
+              at afterWriteTick (node:internal/streams/writable:694:10)
+              at process.processTicksAndRejections (node:internal/process/task_queues:89:21)
+    }
+[13:18:53.414] ERROR (26054): Failed to list games
+    err: {
+      "type": "_DrizzleQueryError",
+      "message": "Failed query: select \"id\", \"white_player_id\", \"black_player_id\", \"status\", \"fen\", \"winner\", \"created_at\", \"updated_at\" from \"chess_games\" where \"chess_games\".\"status\" = $1 order by \"chess_games\".\"created_at\"\nparams: waiting: connect ENETUNREACH 2a05:d018:135e:167b:915b:b56f:4f6b:b7c7:5432 - Local (:::0)",
+      "stack":
+          Error: Failed query: select "id", "white_player_id", "black_player_id", "status", "fen", "winner", "created_at", "updated_at" from "chess_games" where "chess_games"."status" = $1 order by "chess_games"."created_at"
+          params: waiting
+              at NodePgPreparedQuery.queryWithCache (/home/hello/Documents/chess test/chess-Board-hmd/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:73:11)
+              at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+              at async <anonymous> (/home/hello/Documents/chess test/chess-Board-hmd/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:154:19)
+              at async <anonymous> (/home/hello/Documents/chess test/chess-Board-hmd/artifacts/api-server/src/routes/games.ts:13:19)
+          caused by: Error: connect ENETUNREACH 2a05:d018:135e:167b:915b:b56f:4f6b:b7c7:5432 - Local (:::0)
+              at <anonymous> (/home/hello/Documents/chess test/chess-Board-hmd/node_modules/.pnpm/pg-pool@3.13.0_pg@8.20.0/node_modules/pg-pool/index.js:45:11)
+              at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+              at async <anonymous> (/home/hello/Documents/chess test/chess-Board-hmd/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:161:13)
+              at async NodePgPreparedQuery.queryWithCache (/home/hello/Documents/chess test/chess-Board-hmd/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:71:12)
+              at async <anonymous> (/home/hello/Documents/chess test/chess-Board-hmd/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:154:19)
+              at async <anonymous> (/home/hello/Documents/chess test/chess-Board-hmd/artifacts/api-server/src/routes/games.ts:13:19)
+      "query": "select \"id\", \"white_player_id\", \"black_player_id\", \"status\", \"fen\", \"winner\", \"created_at\", \"updated_at\" from \"chess_games\" where \"chess_games\".\"status\" = $1 order by \"chess_games\".\"created_at\"",
+      "params": [
+        "waiting"
+      ]
+    }
+[13:18:53.415] INFO (26054): request errored
+    req: {
+      "id": 12,
+      "method": "GET",
+      "url": "/api/games"
+    }
+    res: {
+      "statusCode": 500
+    }
+    responseTime: 4
+    err: {
+      "type": "Error",
+      "message": "failed with status code 500",
+      "stack":
+          Error: failed with status code 500
+              at onResFinished (/home/hello/Documents/chess test/chess-Board-hmd/node_modules/.pnpm/pino-http@10.5.0/node_modules/pino-http/logger.js:115:39)
+              at ServerResponse.onResponseComplete (/home/hello/Documents/chess test/chess-Board-hmd/node_modules/.pnpm/pino-http@10.5.0/node_modules/pino-http/logger.js:178:14)
+              at ServerResponse.emit (node:events:520:22)
+              at onFinish (node:_http_outgoing:1026:10)
+              at callback (node:internal/streams/writable:764:21)
+              at afterWrite (node:internal/streams/writable:708:5)
+              at afterWriteTick (node:internal/streams/writable:694:10)
+              at process.processTicksAndRejections (node:internal/process/task_queues:89:21)
+    }
+[13:18:55.427] ERROR (26054): Failed to list games
+    err: {
+      "type": "_DrizzleQueryError",
+      "message": "Failed query: select \"id\", \"white_player_id\", \"black_player_id\", \"status\", \"fen\", \"winner\", \"created_at\", \"updated_at\" from \"chess_games\" where \"chess_games\".\"status\" = $1 order by \"chess_games\".\"created_at\"\nparams: waiting: connect ENETUNREACH 2a05:d018:135e:167b:915b:b56f:4f6b:b7c7:5432 - Local (:::0)",
+      "stack":
+          Error: Failed query: select "id", "white_player_id", "black_player_id", "status", "fen", "winner", "created_at", "updated_at" from "chess_games" where "chess_games"."status" = $1 order by "chess_games"."created_at"
+          params: waiting
+              at NodePgPreparedQuery.queryWithCache (/home/hello/Documents/chess test/chess-Board-hmd/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:73:11)
+              at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+              at async <anonymous> (/home/hello/Documents/chess test/chess-Board-hmd/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:154:19)
+              at async <anonymous> (/home/hello/Documents/chess test/chess-Board-hmd/artifacts/api-server/src/routes/games.ts:13:19)
+          caused by: Error: connect ENETUNREACH 2a05:d018:135e:167b:915b:b56f:4f6b:b7c7:5432 - Local (:::0)
+              at <anonymous> (/home/hello/Documents/chess test/chess-Board-hmd/node_modules/.pnpm/pg-pool@3.13.0_pg@8.20.0/node_modules/pg-pool/index.js:45:11)
+              at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+              at async <anonymous> (/home/hello/Documents/chess test/chess-Board-hmd/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:161:13)
+              at async NodePgPreparedQuery.queryWithCache (/home/hello/Documents/chess test/chess-Board-hmd/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:71:12)
+              at async <anonymous> (/home/hello/Documents/chess test/chess-Board-hmd/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:154:19)
+              at async <anonymous> (/home/hello/Documents/chess test/chess-Board-hmd/artifacts/api-server/src/routes/games.ts:13:19)
+      "query": "select \"id\", \"white_player_id\", \"black_player_id\", \"status\", \"fen\", \"winner\", \"created_at\", \"updated_at\" from \"chess_games\" where \"chess_games\".\"status\" = $1 order by \"chess_games\".\"created_at\"",
+      "params": [
+        "waiting"
+      ]
+    }
+[13:18:55.427] INFO (26054): request errored
+    req: {
+      "id": 13,
+      "method": "GET",
+      "url": "/api/games"
+    }
+    res: {
+      "statusCode": 500
+    }
+    responseTime: 3
+    err: {
+      "type": "Error",
+      "message": "failed with status code 500",
+      "stack":
+          Error: failed with status code 500
+              at onResFinished (/home/hello/Documents/chess test/chess-Board-hmd/node_modules/.pnpm/pino-http@10.5.0/node_modules/pino-http/logger.js:115:39)
+              at ServerResponse.onResponseComplete (/home/hello/Documents/chess test/chess-Board-hmd/node_modules/.pnpm/pino-http@10.5.0/node_modules/pino-http/logger.js:178:14)
+              at ServerResponse.emit (node:events:520:22)
+              at onFinish (node:_http_outgoing:1026:10)
+              at callback (node:internal/streams/writable:764:21)
+              at afterWrite (node:internal/streams/writable:708:5)
+              at afterWriteTick (node:internal/streams/writable:694:10)
+              at process.processTicksAndRejections (node:internal/process/task_queues:89:21)
+    }
+[13:18:59.442] ERROR (26054): Failed to list games
+    err: {
+      "type": "_DrizzleQueryError",
+      "message": "Failed query: select \"id\", \"white_player_id\", \"black_player_id\", \"status\", \"fen\", \"winner\", \"created_at\", \"updated_at\" from \"chess_games\" where \"chess_games\".\"status\" = $1 order by \"chess_games\".\"created_at\"\nparams: waiting: connect ENETUNREACH 2a05:d018:135e:167b:915b:b56f:4f6b:b7c7:5432 - Local (:::0)",
+      "stack":
+          Error: Failed query: select "id", "white_player_id", "black_player_id", "status", "fen", "winner", "created_at", "updated_at" from "chess_games" where "chess_games"."status" = $1 order by "chess_games"."created_at"
+          params: waiting
+              at NodePgPreparedQuery.queryWithCache (/home/hello/Documents/chess test/chess-Board-hmd/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:73:11)
+              at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+              at async <anonymous> (/home/hello/Documents/chess test/chess-Board-hmd/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:154:19)
+              at async <anonymous> (/home/hello/Documents/chess test/chess-Board-hmd/artifacts/api-server/src/routes/games.ts:13:19)
+          caused by: Error: connect ENETUNREACH 2a05:d018:135e:167b:915b:b56f:4f6b:b7c7:5432 - Local (:::0)
+              at <anonymous> (/home/hello/Documents/chess test/chess-Board-hmd/node_modules/.pnpm/pg-pool@3.13.0_pg@8.20.0/node_modules/pg-pool/index.js:45:11)
+              at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+              at async <anonymous> (/home/hello/Documents/chess test/chess-Board-hmd/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:161:13)
+              at async NodePgPreparedQuery.queryWithCache (/home/hello/Documents/chess test/chess-Board-hmd/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:71:12)
+              at async <anonymous> (/home/hello/Documents/chess test/chess-Board-hmd/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:154:19)
+              at async <anonymous> (/home/hello/Documents/chess test/chess-Board-hmd/artifacts/api-server/src/routes/games.ts:13:19)
+      "query": "select \"id\", \"white_player_id\", \"black_player_id\", \"status\", \"fen\", \"winner\", \"created_at\", \"updated_at\" from \"chess_games\" where \"chess_games\".\"status\" = $1 order by \"chess_games\".\"created_at\"",
+      "params": [
+        "waiting"
+      ]
+    }
+[13:18:59.443] INFO (26054): request errored
+    req: {
+      "id": 14,
+      "method": "GET",
+      "url": "/api/games"
+    }
+    res: {
+      "statusCode": 500
+    }
+    responseTime: 5
+    err: {
+      "type": "Error",
+      "message": "failed with status code 500",
+      "stack":
+          Error: failed with status code 500
+              at onResFinished (/home/hello/Documents/chess test/chess-Board-hmd/node_modules/.pnpm/pino-http@10.5.0/node_modules/pino-http/logger.js:115:39)
+              at ServerResponse.onResponseComplete (/home/hello/Documents/chess test/chess-Board-hmd/node_modules/.pnpm/pino-http@10.5.0/node_modules/pino-http/logger.js:178:14)
+              at ServerResponse.emit (node:events:520:22)
+              at onFinish (node:_http_outgoing:1026:10)
+              at callback (node:internal/streams/writable:764:21)
+              at afterWrite (node:internal/streams/writable:708:5)
+              at afterWriteTick (node:internal/streams/writable:694:10)
+              at process.processTicksAndRejections (node:internal/process/task_queues:89:21)
+    }
+[13:19:04.461] ERROR (26054): Failed to list games
+    err: {
+      "type": "_DrizzleQueryError",
+      "message": "Failed query: select \"id\", \"white_player_id\", \"black_player_id\", \"status\", \"fen\", \"winner\", \"created_at\", \"updated_at\" from \"chess_games\" where \"chess_games\".\"status\" = $1 order by \"chess_games\".\"created_at\"\nparams: waiting: connect ENETUNREACH 2a05:d018:135e:167b:915b:b56f:4f6b:b7c7:5432 - Local (:::0)",
+      "stack":
+          Error: Failed query: select "id", "white_player_id", "black_player_id", "status", "fen", "winner", "created_at", "updated_at" from "chess_games" where "chess_games"."status" = $1 order by "chess_games"."created_at"
+          params: waiting
+              at NodePgPreparedQuery.queryWithCache (/home/hello/Documents/chess test/chess-Board-hmd/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:73:11)
+              at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+              at async <anonymous> (/home/hello/Documents/chess test/chess-Board-hmd/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:154:19)
+              at async <anonymous> (/home/hello/Documents/chess test/chess-Board-hmd/artifacts/api-server/src/routes/games.ts:13:19)
+          caused by: Error: connect ENETUNREACH 2a05:d018:135e:167b:915b:b56f:4f6b:b7c7:5432 - Local (:::0)
+              at <anonymous> (/home/hello/Documents/chess test/chess-Board-hmd/node_modules/.pnpm/pg-pool@3.13.0_pg@8.20.0/node_modules/pg-pool/index.js:45:11)
+              at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+              at async <anonymous> (/home/hello/Documents/chess test/chess-Board-hmd/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:161:13)
+              at async NodePgPreparedQuery.queryWithCache (/home/hello/Documents/chess test/chess-Board-hmd/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:71:12)
+              at async <anonymous> (/home/hello/Documents/chess test/chess-Board-hmd/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:154:19)
+              at async <anonymous> (/home/hello/Documents/chess test/chess-Board-hmd/artifacts/api-server/src/routes/games.ts:13:19)
+      "query": "select \"id\", \"white_player_id\", \"black_player_id\", \"status\", \"fen\", \"winner\", \"created_at\", \"updated_at\" from \"chess_games\" where \"chess_games\".\"status\" = $1 order by \"chess_games\".\"created_at\"",
+      "params": [
+        "waiting"
+      ]
+    }
+[13:19:04.462] INFO (26054): request errored
+    req: {
+      "id": 15,
+      "method": "GET",
+      "url": "/api/games"
+    }
+    res: {
+      "statusCode": 500
+    }
+    responseTime: 5
+    err: {
+      "type": "Error",
+      "message": "failed with status code 500",
+      "stack":
+          Error: failed with status code 500
+              at onResFinished (/home/hello/Documents/chess test/chess-Board-hmd/node_modules/.pnpm/pino-http@10.5.0/node_modules/pino-http/logger.js:115:39)
+              at ServerResponse.onResponseComplete (/home/hello/Documents/chess test/chess-Board-hmd/node_modules/.pnpm/pino-http@10.5.0/node_modules/pino-http/logger.js:178:14)
+              at ServerResponse.emit (node:events:520:22)
+              at onFinish (node:_http_outgoing:1026:10)
+              at callback (node:internal/streams/writable:764:21)
+              at afterWrite (node:internal/streams/writable:708:5)
+              at afterWriteTick (node:internal/streams/writable:694:10)
+              at process.processTicksAndRejections (node:internal/process/task_queues:89:21)
+    }
+[13:19:05.480] ERROR (26054): Failed to list games
+    err: {
+      "type": "_DrizzleQueryError",
+      "message": "Failed query: select \"id\", \"white_player_id\", \"black_player_id\", \"status\", \"fen\", \"winner\", \"created_at\", \"updated_at\" from \"chess_games\" where \"chess_games\".\"status\" = $1 order by \"chess_games\".\"created_at\"\nparams: waiting: connect ENETUNREACH 2a05:d018:135e:167b:915b:b56f:4f6b:b7c7:5432 - Local (:::0)",
+      "stack":
+          Error: Failed query: select "id", "white_player_id", "black_player_id", "status", "fen", "winner", "created_at", "updated_at" from "chess_games" where "chess_games"."status" = $1 order by "chess_games"."created_at"
+          params: waiting
+              at NodePgPreparedQuery.queryWithCache (/home/hello/Documents/chess test/chess-Board-hmd/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:73:11)
+              at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+              at async <anonymous> (/home/hello/Documents/chess test/chess-Board-hmd/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:154:19)
+              at async <anonymous> (/home/hello/Documents/chess test/chess-Board-hmd/artifacts/api-server/src/routes/games.ts:13:19)
+          caused by: Error: connect ENETUNREACH 2a05:d018:135e:167b:915b:b56f:4f6b:b7c7:5432 - Local (:::0)
+              at <anonymous> (/home/hello/Documents/chess test/chess-Board-hmd/node_modules/.pnpm/pg-pool@3.13.0_pg@8.20.0/node_modules/pg-pool/index.js:45:11)
+              at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+              at async <anonymous> (/home/hello/Documents/chess test/chess-Board-hmd/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:161:13)
+              at async NodePgPreparedQuery.queryWithCache (/home/hello/Documents/chess test/chess-Board-hmd/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:71:12)
+              at async <anonymous> (/home/hello/Documents/chess test/chess-Board-hmd/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:154:19)
+              at async <anonymous> (/home/hello/Documents/chess test/chess-Board-hmd/artifacts/api-server/src/routes/games.ts:13:19)
+      "query": "select \"id\", \"white_player_id\", \"black_player_id\", \"status\", \"fen\", \"winner\", \"created_at\", \"updated_at\" from \"chess_games\" where \"chess_games\".\"status\" = $1 order by \"chess_games\".\"created_at\"",
+      "params": [
+        "waiting"
+      ]
+    }
+[13:19:05.482] INFO (26054): request errored
+    req: {
+      "id": 16,
+      "method": "GET",
+      "url": "/api/games"
+    }
+    res: {
+      "statusCode": 500
+    }
+    responseTime: 7
+    err: {
+      "type": "Error",
+      "message": "failed with status code 500",
+      "stack":
+          Error: failed with status code 500
+              at onResFinished (/home/hello/Documents/chess test/chess-Board-hmd/node_modules/.pnpm/pino-http@10.5.0/node_modules/pino-http/logger.js:115:39)
+              at ServerResponse.onResponseComplete (/home/hello/Documents/chess test/chess-Board-hmd/node_modules/.pnpm/pino-http@10.5.0/node_modules/pino-http/logger.js:178:14)
+              at ServerResponse.emit (node:events:520:22)
+              at onFinish (node:_http_outgoing:1026:10)
+              at callback (node:internal/streams/writable:764:21)
+              at afterWrite (node:internal/streams/writable:708:5)
+              at afterWriteTick (node:internal/streams/writable:694:10)
+              at process.processTicksAndRejections (node:internal/process/task_queues:89:21)
+    }
+[13:19:07.500] ERROR (26054): Failed to list games
+    err: {
+      "type": "_DrizzleQueryError",
+      "message": "Failed query: select \"id\", \"white_player_id\", \"black_player_id\", \"status\", \"fen\", \"winner\", \"created_at\", \"updated_at\" from \"chess_games\" where \"chess_games\".\"status\" = $1 order by \"chess_games\".\"created_at\"\nparams: waiting: connect ENETUNREACH 2a05:d018:135e:167b:915b:b56f:4f6b:b7c7:5432 - Local (:::0)",
+      "stack":
+          Error: Failed query: select "id", "white_player_id", "black_player_id", "status", "fen", "winner", "created_at", "updated_at" from "chess_games" where "chess_games"."status" = $1 order by "chess_games"."created_at"
+          params: waiting
+              at NodePgPreparedQuery.queryWithCache (/home/hello/Documents/chess test/chess-Board-hmd/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:73:11)
+              at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+              at async <anonymous> (/home/hello/Documents/chess test/chess-Board-hmd/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:154:19)
+              at async <anonymous> (/home/hello/Documents/chess test/chess-Board-hmd/artifacts/api-server/src/routes/games.ts:13:19)
+          caused by: Error: connect ENETUNREACH 2a05:d018:135e:167b:915b:b56f:4f6b:b7c7:5432 - Local (:::0)
+              at <anonymous> (/home/hello/Documents/chess test/chess-Board-hmd/node_modules/.pnpm/pg-pool@3.13.0_pg@8.20.0/node_modules/pg-pool/index.js:45:11)
+              at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+              at async <anonymous> (/home/hello/Documents/chess test/chess-Board-hmd/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:161:13)
+              at async NodePgPreparedQuery.queryWithCache (/home/hello/Documents/chess test/chess-Board-hmd/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/pg-core/session.ts:71:12)
+              at async <anonymous> (/home/hello/Documents/chess test/chess-Board-hmd/node_modules/.pnpm/drizzle-orm@0.45.1_@types+pg@8.18.0_pg@8.20.0/node_modules/src/node-postgres/session.ts:154:19)
+              at async <anonymous> (/home/hello/Documents/chess test/chess-Board-hmd/artifacts/api-server/src/routes/games.ts:13:19)
+      "query": "select \"id\", \"white_player_id\", \"black_player_id\", \"status\", \"fen\", \"winner\", \"created_at\", \"updated_at\" from \"chess_games\" where \"chess_games\".\"status\" = $1 order by \"chess_games\".\"created_at\"",
+      "params": [
+        "waiting"
+      ]
+    }
+[13:19:07.500] INFO (26054): request errored
+    req: {
+      "id": 17,
+      "method": "GET",
+      "url": "/api/games"
+    }
+    res: {
+      "statusCode": 500
+    }
+    responseTime: 6
+    err: {
+      "type": "Error",
+      "message": "failed with status code 500",
+      "stack":
+          Error: failed with status code 500
+              at onResFinished (/home/hello/Documents/chess test/chess-Board-hmd/node_modules/.pnpm/pino-http@10.5.0/node_modules/pino-http/logger.js:115:39)
+              at ServerResponse.onResponseComplete (/home/hello/Documents/chess test/chess-Board-hmd/node_modules/.pnpm/pino-http@10.5.0/node_modules/pino-http/logger.js:178:14)
+              at ServerResponse.emit (node:events:520:22)
+              at onFinish (node:_http_outgoing:1026:10)
+              at callback (node:internal/streams/writable:764:21)
+              at afterWrite (node:internal/streams/writable:708:5)
+              at afterWriteTick (node:internal/streams/writable:694:10)
+              at process.processTicksAndRejections (node:internal/process/task_queues:89:21)
+    }

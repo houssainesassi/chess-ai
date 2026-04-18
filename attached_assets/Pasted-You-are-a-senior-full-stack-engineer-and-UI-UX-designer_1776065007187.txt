@@ -1,0 +1,109 @@
+You are a senior full-stack engineer and UI/UX designer.
+
+I already have a working chess web app (Next.js + Node.js + Stockfish).
+
+I want you to IMPROVE the existing app. Do NOT rebuild it.
+
+---
+
+## 🎯 Goals:
+
+1. Improve the chessboard UI responsiveness
+2. Add mobile-friendly full-screen board mode
+3. Fix AI to analyze BOTH sides (not only white)
+
+---
+
+## 🧩 UI / UX Improvements:
+
+### 💻 Desktop:
+
+* Make the chessboard automatically take maximum available width
+* The board should scale responsively with screen size
+* Keep sidebar (analysis, moves) visible on the right
+
+---
+
+### 📱 Mobile:
+
+* Add a button: "Fullscreen Board"
+* When clicked:
+
+  * Chessboard becomes FULLSCREEN (like Chess.com)
+  * Hide sidebar
+  * Board takes 100% width and height
+* Add a button to exit fullscreen
+
+---
+
+### 🎨 Behavior:
+
+* Smooth animation when resizing
+* Maintain square ratio (perfect 8x8 grid)
+* Board always centered
+
+---
+
+## 🧠 AI FIX (IMPORTANT):
+
+Currently AI analyzes only White moves.
+
+### Fix:
+
+* AI must analyze BOTH sides:
+
+  * When White plays → evaluate position
+  * When Black plays → ALSO evaluate position
+
+---
+
+### Requirements:
+
+* Always send current FEN after ANY move (white or black)
+* Stockfish should evaluate the FULL position, not a specific player
+* Return:
+
+  * evaluation score (+ / -)
+  * best move for current turn
+  * top 3 moves
+
+---
+
+### UI Update:
+
+* Evaluation bar must reflect:
+
+  * White advantage (+)
+  * Black advantage (-)
+
+* Show:
+
+  * "White is better" OR "Black is better"
+
+* Update top moves dynamically after each move
+
+---
+
+## ⚡ Extra Improvements:
+
+* Highlight last move on board
+* Smooth piece movement animation
+* Keep UI similar to Chess.com (modern, clean, dark theme)
+
+---
+
+## ⚠️ Important:
+
+* Do NOT rewrite the project
+* Only improve existing code
+* Keep everything modular
+* Ensure mobile responsiveness is perfect
+* Ensure AI works for both sides
+
+---
+
+## 🧾 Deliver:
+
+* Updated frontend components
+* Updated AI logic if needed
+* Clear explanation of changes

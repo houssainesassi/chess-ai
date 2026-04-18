@@ -1,0 +1,525 @@
+import { useEffect, useRef, useState, useCallback } from "react";
+import { Chess } from "chess.js";
+import { Eye, AlertTriangle, RefreshCw, Loader2, Crosshair } from "lucide-react";
+
+const FILES = ["a", "b", "c", "d", "e", "f", "g", "h"];
+const RANKS = ["8", "7", "6", "5", "4", "3", "2", "1"];
+
+// MediaPipe FaceLandmarker iris indices
+const LEFT_IRIS = 468;
+const RIGHT_IRIS = 473;
+const LEFT_EYE_LEFT = 33;
+const LEFT_EYE_RIGHT = 133;
+const LEFT_EYE_TOP = 159;
+const LEFT_EYE_BOTTOM = 145;
+const RIGHT_EYE_LEFT = 362;
+const RIGHT_EYE_RIGHT = 263;
+const RIGHT_EYE_TOP = 386;
+const RIGHT_EYE_BOTTOM = 374;
+
+const DWELL_MS = 1400;
+const SMOOTH_ALPHA = 0.18;
+
+interface CalibrationData {
+  minX: number;
+  maxX: number;
+  minY: number;
+  maxY: number;
+}
+
+const DEFAULT_CALIB: CalibrationData = { minX: 0.35, maxX: 0.65, minY: 0.35, maxY: 0.65 };
+
+type Landmark = { x: number; y: number; z: number };
+
+function computeGaze(lm: Landmark[]): { x: number; y: number } | null {
+  if (lm.length < 478) return null;
+  const leftW = lm[LEFT_EYE_RIGHT].x - lm[LEFT_EYE_LEFT].x;
+  const leftH = lm[LEFT_EYE_BOTTOM].y - lm[LEFT_EYE_TOP].y;
+  const rightW = lm[RIGHT_EYE_RIGHT].x - lm[RIGHT_EYE_LEFT].x;
+  const rightH = lm[RIGHT_EYE_BOTTOM].y - lm[RIGHT_EYE_TOP].y;
+  if (leftW < 0.001 || rightW < 0.001 || leftH < 0.001 || rightH < 0.001) return null;
+  const lx = (lm[LEFT_IRIS].x - lm[LEFT_EYE_LEFT].x) / leftW;
+  const ly = (lm[LEFT_IRIS].y - lm[LEFT_EYE_TOP].y) / leftH;
+  const rx = (lm[RIGHT_IRIS].x - lm[RIGHT_EYE_LEFT].x) / rightW;
+  const ry = (lm[RIGHT_IRIS].y - lm[RIGHT_EYE_TOP].y) / rightH;
+  return { x: (lx + rx) / 2, y: (ly + ry) / 2 };
+}
+
+function gazeToSquare(
+  gaze: { x: number; y: number },
+  calib: CalibrationData
+): string {
+  const nx = Math.max(0, Math.min(1, (gaze.x - calib.minX) / (calib.maxX - calib.minX)));
+  const ny = Math.max(0, Math.min(1, (gaze.y - calib.minY) / (calib.maxY - calib.minY)));
+  const col = Math.min(7, Math.floor(nx * 8));
+  const row = Math.min(7, Math.floor(ny * 8));
+  return FILES[col] + RANKS[row];
+}
+
+interface EyeTrackingInputProps {
+  enabled: boolean;
+  currentFen: string;
+  onSquareHover: (square: string | null) => void;
+  onSquareSelect: (square: string | null) => void;
+  onMove: (uciMove: string, source: "eye") => void;
+  isMoveLocked: () => boolean;
+}
+
+export function EyeTrackingInput({
+  enabled,
+  currentFen,
+  onSquareHover,
+  onSquareSelect,
+  onMove,
+  isMoveLocked,
+}: EyeTrackingInputProps) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const faceLandmarkerRef = useRef<any>(null);
+  const rafRef = useRef<number>(0);
+  const runningRef = useRef(false);
+
+  const smoothedGazeRef = useRef<{ x: number; y: number } | null>(null);
+  const currentFenRef = useRef(currentFen);
+  const fromSquareRef = useRef<string | null>(null);
+  const dwellSquareRef = useRef<string | null>(null);
+  const dwellStartRef = useRef<number>(0);
+
+  const calibRef = useRef<CalibrationData>({ ...DEFAULT_CALIB });
+  const [calib, setCalib] = useState<CalibrationData>({ ...DEFAULT_CALIB });
+  const [calibStep, setCalibStep] = useState<null | "a8" | "h1">(null);
+  const pendingCalibRef = useRef<Partial<CalibrationData>>({});
+
+  const [loadingState, setLoadingState] = useState<"idle" | "loading-mediapipe" | "loading-camera" | "ready" | "error">("idle");
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [gazeSquare, setGazeSquare] = useState<string | null>(null);
+  const [fromSquare, setFromSquare] = useState<string | null>(null);
+  const [dwellProgress, setDwellProgress] = useState(0);
+  const [lastMove, setLastMove] = useState<string | null>(null);
+
+  useEffect(() => { currentFenRef.current = currentFen; }, [currentFen]);
+
+  const stopAll = useCallback(() => {
+    runningRef.current = false;
+    cancelAnimationFrame(rafRef.current);
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+    }
+    smoothedGazeRef.current = null;
+    fromSquareRef.current = null;
+    dwellSquareRef.current = null;
+    setGazeSquare(null);
+    setFromSquare(null);
+    setDwellProgress(0);
+    onSquareHover(null);
+    onSquareSelect(null);
+  }, [onSquareHover, onSquareSelect]);
+
+  const captureCalibPoint = useCallback(() => {
+    const g = smoothedGazeRef.current;
+    if (!g) return;
+    if (calibStep === "a8") {
+      pendingCalibRef.current = { minX: g.x, minY: g.y };
+      setCalibStep("h1");
+    } else if (calibStep === "h1") {
+      const pending = pendingCalibRef.current;
+      const newCalib: CalibrationData = {
+        minX: pending.minX ?? DEFAULT_CALIB.minX,
+        minY: pending.minY ?? DEFAULT_CALIB.minY,
+        maxX: g.x,
+        maxY: g.y,
+      };
+      calibRef.current = newCalib;
+      setCalib(newCalib);
+      setCalibStep(null);
+    }
+  }, [calibStep]);
+
+  const resetCalib = useCallback(() => {
+    calibRef.current = { ...DEFAULT_CALIB };
+    setCalib({ ...DEFAULT_CALIB });
+    setCalibStep(null);
+  }, []);
+
+  const runDetectionLoop = useCallback(() => {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    const landmarker = faceLandmarkerRef.current;
+    if (!video || !canvas || !landmarker || !runningRef.current) return;
+    if (video.readyState < 2) {
+      rafRef.current = requestAnimationFrame(runDetectionLoop);
+      return;
+    }
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    const W = canvas.width;
+    const H = canvas.height;
+
+    ctx.save();
+    ctx.translate(W, 0);
+    ctx.scale(-1, 1);
+    ctx.drawImage(video, 0, 0, W, H);
+    ctx.restore();
+
+    let results: any;
+    try {
+      results = landmarker.detectForVideo(video, performance.now());
+    } catch {
+      rafRef.current = requestAnimationFrame(runDetectionLoop);
+      return;
+    }
+
+    const faceLandmarks: Landmark[][] = results?.faceLandmarks ?? [];
+
+    if (faceLandmarks.length > 0) {
+      const lm = faceLandmarks[0];
+      const rawGaze = computeGaze(lm);
+
+      if (rawGaze) {
+        // EMA smoothing
+        const prev = smoothedGazeRef.current;
+        smoothedGazeRef.current = prev
+          ? {
+              x: SMOOTH_ALPHA * rawGaze.x + (1 - SMOOTH_ALPHA) * prev.x,
+              y: SMOOTH_ALPHA * rawGaze.y + (1 - SMOOTH_ALPHA) * prev.y,
+            }
+          : rawGaze;
+
+        const smoothed = smoothedGazeRef.current;
+        const square = gazeToSquare(smoothed, calibRef.current);
+
+        // Update hover
+        setGazeSquare(square);
+        onSquareHover(square);
+
+        // Draw gaze indicator on canvas (mirrored display coords)
+        // Map smoothed gaze back to raw camera coords for display
+        // Iris was in raw camera coords; we mirror for display
+        const leftIris = lm[LEFT_IRIS];
+        const dispX = (1 - leftIris.x) * W;
+        const dispY = leftIris.y * H;
+
+        // Animated gaze dot
+        const now = Date.now();
+
+        // Dwell detection
+        if (square !== dwellSquareRef.current) {
+          dwellSquareRef.current = square;
+          dwellStartRef.current = now;
+          setDwellProgress(0);
+        } else {
+          const elapsed = now - dwellStartRef.current;
+          const progress = Math.min(1, elapsed / DWELL_MS);
+          setDwellProgress(progress);
+
+          if (progress >= 1 && !isMoveLocked()) {
+            dwellStartRef.current = now + 99999; // prevent re-triggering
+
+            if (!fromSquareRef.current) {
+              const chess = new Chess(currentFenRef.current);
+              const piece = chess.get(square as any);
+              if (piece) {
+                fromSquareRef.current = square;
+                setFromSquare(square);
+                onSquareSelect(square);
+              }
+            } else if (square === fromSquareRef.current) {
+              fromSquareRef.current = null;
+              setFromSquare(null);
+              onSquareSelect(null);
+            } else {
+              const chess = new Chess(currentFenRef.current);
+              try {
+                const move = chess.move({ from: fromSquareRef.current as any, to: square as any, promotion: "q" });
+                if (move) {
+                  const uci = move.from + move.to + (move.promotion ?? "");
+                  setLastMove(move.from + move.to);
+                  onMove(uci, "eye");
+                }
+              } catch {}
+              fromSquareRef.current = null;
+              setFromSquare(null);
+              onSquareSelect(null);
+            }
+          }
+        }
+
+        // Draw gaze ring on canvas
+        const progress = Math.min(1, (now - dwellStartRef.current) / DWELL_MS);
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(dispX, dispY, 12, 0, Math.PI * 2);
+        ctx.strokeStyle = "rgba(34,211,238,0.6)";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        if (progress > 0 && progress < 1) {
+          ctx.beginPath();
+          ctx.arc(dispX, dispY, 12, -Math.PI / 2, -Math.PI / 2 + progress * Math.PI * 2);
+          ctx.strokeStyle = "#22d3ee";
+          ctx.lineWidth = 3;
+          ctx.stroke();
+        }
+
+        ctx.beginPath();
+        ctx.arc(dispX, dispY, 4, 0, Math.PI * 2);
+        ctx.fillStyle = "#22d3ee";
+        ctx.fill();
+
+        // Square label
+        ctx.fillStyle = "rgba(0,0,0,0.6)";
+        ctx.fillRect(dispX - 18, dispY + 16, 36, 16);
+        ctx.fillStyle = "#22d3ee";
+        ctx.font = "bold 11px monospace";
+        ctx.textAlign = "center";
+        ctx.fillText(square, dispX, dispY + 27);
+        ctx.restore();
+
+        // Draw iris landmarks for left and right eye
+        for (const irisIdx of [LEFT_IRIS, RIGHT_IRIS]) {
+          const il = lm[irisIdx];
+          const ix = (1 - il.x) * W;
+          const iy = il.y * H;
+          ctx.beginPath();
+          ctx.arc(ix, iy, 5, 0, Math.PI * 2);
+          ctx.strokeStyle = "rgba(34,211,238,0.9)";
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        }
+
+        // Draw face mesh outline (key landmarks only)
+        const FACE_OUTLINE = [10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288, 397, 365, 379, 378, 400, 377, 152, 148, 176, 149, 150, 136, 172, 58, 132, 93, 234, 127, 162, 21, 54, 103, 67, 109];
+        ctx.beginPath();
+        for (let i = 0; i < FACE_OUTLINE.length; i++) {
+          const p = lm[FACE_OUTLINE[i]];
+          const px = (1 - p.x) * W;
+          const py = p.y * H;
+          if (i === 0) ctx.moveTo(px, py);
+          else ctx.lineTo(px, py);
+        }
+        ctx.closePath();
+        ctx.strokeStyle = "rgba(99,202,183,0.25)";
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+      }
+    } else {
+      // No face — clear
+      if (smoothedGazeRef.current) {
+        smoothedGazeRef.current = null;
+        setGazeSquare(null);
+        setDwellProgress(0);
+        onSquareHover(null);
+      }
+    }
+
+    // Grid overlay
+    const cw = W / 8;
+    const ch = H / 8;
+    ctx.strokeStyle = "rgba(255,255,255,0.1)";
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= 8; i++) {
+      ctx.beginPath(); ctx.moveTo(i * cw, 0); ctx.lineTo(i * cw, H); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, i * ch); ctx.lineTo(W, i * ch); ctx.stroke();
+    }
+
+    rafRef.current = requestAnimationFrame(runDetectionLoop);
+  }, [onSquareHover, onSquareSelect, onMove, isMoveLocked]);
+
+  const startEyeTracking = useCallback(async () => {
+    setErrorMsg(null);
+    setLoadingState("loading-mediapipe");
+    try {
+      const { FaceLandmarker, FilesetResolver } = await import("@mediapipe/tasks-vision");
+
+      const vision = await FilesetResolver.forVisionTasks(
+        "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
+      );
+
+      const landmarker = await FaceLandmarker.createFromOptions(vision, {
+        baseOptions: {
+          modelAssetPath: "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
+          delegate: "GPU",
+        },
+        runningMode: "VIDEO",
+        numFaces: 1,
+        minFaceDetectionConfidence: 0.5,
+        minFacePresenceConfidence: 0.5,
+        minTrackingConfidence: 0.5,
+        outputFaceBlendshapes: false,
+        outputFacialTransformationMatrixes: false,
+      });
+
+      faceLandmarkerRef.current = landmarker;
+      setLoadingState("loading-camera");
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" },
+      });
+      streamRef.current = stream;
+
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.onloadedmetadata = () => {
+          videoRef.current?.play();
+          runningRef.current = true;
+          setLoadingState("ready");
+          rafRef.current = requestAnimationFrame(runDetectionLoop);
+        };
+      }
+    } catch (err: any) {
+      const msg =
+        err?.name === "NotAllowedError"
+          ? "Camera permission denied."
+          : err?.name === "NotFoundError"
+          ? "No camera found."
+          : `Failed to initialize: ${err?.message ?? "unknown error"}`;
+      setErrorMsg(msg);
+      setLoadingState("error");
+    }
+  }, [runDetectionLoop]);
+
+  useEffect(() => {
+    if (enabled) {
+      startEyeTracking();
+    } else {
+      stopAll();
+      setLoadingState("idle");
+    }
+    return () => stopAll();
+  }, [enabled]);
+
+  useEffect(() => {
+    if (enabled && loadingState === "ready") {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = requestAnimationFrame(runDetectionLoop);
+    }
+  }, [runDetectionLoop, enabled, loadingState]);
+
+  if (!enabled) return null;
+
+  return (
+    <div className="flex flex-col gap-2">
+      {/* Camera preview with iris overlay */}
+      <div className="relative rounded-lg overflow-hidden border border-border/60 bg-black shadow-xl">
+        <video ref={videoRef} className="w-full block opacity-0 absolute" playsInline muted style={{ maxHeight: 220 }} />
+        <canvas ref={canvasRef} width={320} height={240} className="w-full block" style={{ maxHeight: 220 }} />
+
+        {(loadingState === "loading-mediapipe" || loadingState === "loading-camera") && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 gap-2">
+            <Loader2 size={24} className="animate-spin text-cyan-400" />
+            <span className="text-xs text-cyan-400">
+              {loadingState === "loading-mediapipe" ? "Loading face detection model…" : "Starting camera…"}
+            </span>
+          </div>
+        )}
+
+        {loadingState === "ready" && (
+          <div className="absolute top-2 right-2 flex items-center gap-1.5 bg-black/60 rounded-full px-2 py-1">
+            <div className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+            <span className="text-[10px] text-cyan-400 font-mono">EYE TRACK</span>
+          </div>
+        )}
+
+        {/* Dwell progress ring badge */}
+        {dwellProgress > 0 && dwellProgress < 1 && (
+          <div className="absolute top-2 left-2 bg-cyan-900/80 rounded-full px-2 py-0.5 flex items-center gap-1">
+            <span className="text-[10px] font-bold text-cyan-300">{Math.round(dwellProgress * 100)}%</span>
+          </div>
+        )}
+
+        {/* Calibration overlay */}
+        {calibStep && (
+          <div className="absolute inset-0 bg-black/75 flex flex-col items-center justify-center gap-3 px-3">
+            <Crosshair size={20} className="text-cyan-400" />
+            <p className="text-xs text-cyan-300 text-center leading-snug">
+              {calibStep === "a8"
+                ? "Look at the top-left corner of the board (a8), then click Capture."
+                : "Now look at the bottom-right corner (h1), then click Capture."}
+            </p>
+            <button
+              onClick={captureCalibPoint}
+              className="px-3 py-1.5 bg-cyan-500 hover:bg-cyan-400 text-black text-xs font-bold rounded-full transition-colors"
+            >
+              Capture
+            </button>
+            <button onClick={() => setCalibStep(null)} className="text-[10px] text-muted-foreground underline">
+              Cancel
+            </button>
+          </div>
+        )}
+      </div>
+
+      {loadingState === "error" && errorMsg && (
+        <div className="flex items-start gap-2 p-2 bg-red-900/20 border border-red-700/40 rounded-lg text-xs text-red-400">
+          <AlertTriangle size={13} className="shrink-0 mt-0.5" />
+          <div>{errorMsg}</div>
+        </div>
+      )}
+
+      {loadingState === "ready" && (
+        <div className="flex flex-col gap-1.5 px-1">
+          <div className="flex items-center gap-2 text-[10px]">
+            <span className="text-muted-foreground uppercase tracking-wider">Gaze</span>
+            <span className="font-mono font-bold text-cyan-400">{gazeSquare ?? "—"}</span>
+            {fromSquare && (
+              <>
+                <span className="text-muted-foreground uppercase tracking-wider ml-2">Selected</span>
+                <span className="font-mono font-bold text-blue-400">{fromSquare}</span>
+              </>
+            )}
+            {dwellProgress > 0 && (
+              <div className="ml-auto h-1.5 w-16 bg-border/40 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-cyan-400 rounded-full transition-all duration-100"
+                  style={{ width: `${dwellProgress * 100}%` }}
+                />
+              </div>
+            )}
+          </div>
+          {lastMove && (
+            <div className="flex items-center gap-2 text-[10px]">
+              <span className="text-muted-foreground uppercase tracking-wider">Last move</span>
+              <span className="font-mono font-bold text-green-400">{lastMove}</span>
+            </div>
+          )}
+
+          {/* Calibration controls */}
+          <div className="flex items-center gap-2 mt-0.5">
+            {!calibStep ? (
+              <button
+                onClick={() => { pendingCalibRef.current = {}; setCalibStep("a8"); }}
+                className="flex items-center gap-1 text-[10px] text-cyan-400/70 hover:text-cyan-400 transition-colors"
+              >
+                <Crosshair size={10} />
+                Calibrate gaze
+              </button>
+            ) : null}
+            {(calib.minX !== DEFAULT_CALIB.minX || calib.maxX !== DEFAULT_CALIB.maxX) && (
+              <button onClick={resetCalib} className="text-[10px] text-muted-foreground/50 hover:text-muted-foreground transition-colors ml-auto">
+                Reset calib
+              </button>
+            )}
+          </div>
+
+          <div className="text-[9px] text-muted-foreground/60 italic leading-tight">
+            Look at a square to highlight it. Hold gaze for {(DWELL_MS / 1000).toFixed(1)}s to select piece or confirm move.
+          </div>
+        </div>
+      )}
+
+      {loadingState === "error" && (
+        <button
+          onClick={startEyeTracking}
+          className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <RefreshCw size={11} />
+          Retry
+        </button>
+      )}
+    </div>
+  );
+}

@@ -1,0 +1,110 @@
+You are a senior full-stack engineer.
+
+I already have a working Smart Chess Board web application using Next.js, Node.js, chess.js, and Stockfish.
+
+Do NOT rebuild the project. Only improve it.
+
+🎯 Goal:
+Make sure BOTH input methods work together in a synchronized way:
+
+✔ Mouse drag & drop
+✔ Camera-based move detection
+
+The system must allow both to be active at the same time WITHOUT conflicts.
+
+🧠 Core Requirement (IMPORTANT):
+Do NOT disable mouse mode when camera mode is enabled.
+
+Instead:
+
+Both systems must update the same shared game state
+
+If a move is detected from either mouse or camera, it must update the board correctly
+
+The backend must treat both inputs equally
+
+🖱️ Mouse System:
+Keep full drag & drop support
+
+Keep click-to-move support
+
+Smooth animations
+
+Works as normal chess.com style interaction
+
+🎥 Camera System:
+Add optional camera input
+
+Detect moves via webcam
+
+Convert detected movement into chess moves (e2e4 format)
+
+Send moves into the same game engine
+
+🔄 Synchronization (VERY IMPORTANT):
+Both systems must:
+
+Read from the same chess.js game state
+
+Write to the same game state
+
+Update UI instantly
+
+Prevent duplicate moves (no double execution)
+
+Handle conflicts safely (last valid move wins or validation via chess.js)
+
+💻 UI (Next.js):
+Add toggle buttons:
+
+🖱️ Mouse Mode (ON/OFF)
+
+📷 Camera Mode (ON/OFF)
+
+But:
+
+👉 Both can be ON at the SAME TIME
+
+Add status indicators:
+
+“Mouse Active”
+
+“Camera Active”
+
+“Live Sync ON”
+
+⚡ System Flow:
+Mouse move → chess.js → update UI → Stockfish
+
+Camera move → vision detection → chess.js → update UI → Stockfish
+
+Both share the same pipeline
+
+🧩 Important Constraints:
+Do NOT break existing drag & drop
+
+Do NOT make camera replace mouse
+
+Make both systems work in parallel
+
+Ensure no race conditions in move updates
+
+Keep performance real-time
+
+🧾 Deliverables:
+Updated input manager system (mouse + camera unified)
+
+Shared game state handler
+
+UI toggle system (independent controls)
+
+Conflict-safe move handler
+
+Clear integration explanation
+
+🚀 Final Result:
+User can:
+
+✔ Play with mouse
+✔ Play with camera
+✔ Use both at the same time seamlessly

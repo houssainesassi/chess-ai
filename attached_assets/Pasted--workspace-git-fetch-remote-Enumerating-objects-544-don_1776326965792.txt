@@ -1,0 +1,68 @@
+~/workspace$ git fetch
+remote: Enumerating objects: 544, done.
+remote: Counting objects: 100% (544/544), done.
+remote: Compressing objects: 100% (202/202), done.
+remote: Total 474 (delta 313), reused 426 (delta 267), pack-reused 0 (from 0)
+Receiving objects: 100% (474/474), 335.95 KiB | 7.81 MiB/s, done.
+Resolving deltas: 100% (313/313), completed with 52 local objects.
+From https://github.com/houssainesassi/chess-Board-hmd
+   a00a6a1..aebefec  main          -> origin/main
+ * [new branch]      dev-houssaine -> origin/dev-houssaine
+ * [new branch]      dev-souhail   -> origin/dev-souhail
+~/workspace$ git pull
+Updating a00a6a1..aebefec
+Fast-forward
+ artifacts/api-server/src/app.ts                             |   4 +-
+ artifacts/api-server/src/lib/chess-engine.ts                |  40 +++-
+ artifacts/api-server/src/lib/game-room-manager.ts           |   4 +-
+ artifacts/api-server/src/lib/socket-server.ts               |   7 +
+ artifacts/api-server/src/routes/friends.ts                  | 308 ++++++++++++++++++++++++++++
+ artifacts/api-server/src/routes/games.ts                    |  43 +++-
+ artifacts/api-server/src/routes/index.ts                    |   6 +
+ artifacts/api-server/src/routes/leaderboard.ts              |  79 ++++++++
+ artifacts/api-server/src/routes/profile.ts                  | 118 +++++++++++
+ artifacts/chess-board/src/App.tsx                           |  60 ++++++
+ artifacts/chess-board/src/components/FriendsPanel.tsx       | 352 ++++++++++++++++++++++++++++++++
+ artifacts/chess-board/src/components/InviteNotification.tsx | 185 +++++++++++++++++
+ artifacts/chess-board/src/components/OnboardingModal.tsx    | 251 +++++++++++++++++++++++
+ artifacts/chess-board/src/components/PlayerAvatar.tsx       |  35 ++++
+ artifacts/chess-board/src/components/ui/dialog.tsx          |  14 +-
+ artifacts/chess-board/src/hooks/use-friends.ts              | 135 +++++++++++++
+ artifacts/chess-board/src/hooks/use-leaderboard.ts          |  28 +++
+ artifacts/chess-board/src/hooks/use-my-games.ts             |  33 +++
+ artifacts/chess-board/src/hooks/use-profile.ts              | 111 +++++++++++
+ artifacts/chess-board/src/hooks/use-socket.ts               |  62 ++++++
+ artifacts/chess-board/src/lib/countries.ts                  | 218 ++++++++++++++++++++
+ artifacts/chess-board/src/pages/GameHistory.tsx             | 126 ++++++++++++
+ artifacts/chess-board/src/pages/GameReplay.tsx              | 443 +++++++++++++++++++++++++++++++++++++++++
+ artifacts/chess-board/src/pages/Home.tsx                    | 234 ++++++++++++++++++----
+ artifacts/chess-board/src/pages/Lobby.tsx                   | 259 +++++++++++++++++++++++-
+ artifacts/chess-board/src/pages/MultiplayerGame.tsx         |  48 ++++-
+ artifacts/chess-board/src/pages/Settings.tsx                | 372 ++++++++++++++++++++++++++++++++++
+ attached_assets/image_1776325736498.png                     | Bin 0 -> 102979 bytes
+ attached_assets/image_1776326447002.png                     | Bin 0 -> 144921 bytes
+ lib/db/src/schema/friends.ts                                |  14 ++
+ lib/db/src/schema/games.ts                                  |   4 +-
+ lib/db/src/schema/index.ts                                  |   2 +
+ lib/db/src/schema/profiles.ts                               |  14 ++
+ replit.md                                                   |   5 +-
+ 34 files changed, 3538 insertions(+), 76 deletions(-)
+ create mode 100644 artifacts/api-server/src/routes/friends.ts
+ create mode 100644 artifacts/api-server/src/routes/leaderboard.ts
+ create mode 100644 artifacts/api-server/src/routes/profile.ts
+ create mode 100644 artifacts/chess-board/src/components/FriendsPanel.tsx
+ create mode 100644 artifacts/chess-board/src/components/InviteNotification.tsx
+ create mode 100644 artifacts/chess-board/src/components/OnboardingModal.tsx
+ create mode 100644 artifacts/chess-board/src/components/PlayerAvatar.tsx
+ create mode 100644 artifacts/chess-board/src/hooks/use-friends.ts
+ create mode 100644 artifacts/chess-board/src/hooks/use-leaderboard.ts
+ create mode 100644 artifacts/chess-board/src/hooks/use-my-games.ts
+ create mode 100644 artifacts/chess-board/src/hooks/use-profile.ts
+ create mode 100644 artifacts/chess-board/src/lib/countries.ts
+ create mode 100644 artifacts/chess-board/src/pages/GameHistory.tsx
+ create mode 100644 artifacts/chess-board/src/pages/GameReplay.tsx
+ create mode 100644 artifacts/chess-board/src/pages/Settings.tsx
+ create mode 100644 attached_assets/image_1776325736498.png
+ create mode 100644 attached_assets/image_1776326447002.png
+ create mode 100644 lib/db/src/schema/friends.ts
+ create mode 10064

@@ -1,0 +1,121 @@
+You are a senior full-stack + embedded systems engineer and UI/UX designer.
+
+I want to build a Smart Chess Board that connects a real physical chessboard to a web application.
+
+---
+
+## 🎯 Project Goal:
+
+When I move a piece on a physical chessboard, the move should be detected and instantly reflected in a web app.
+
+The web app must have a **modern professional UI inspired by Chess.com** (clean, dark theme, smooth animations).
+
+---
+
+## 🧩 Hardware Setup:
+
+* Microcontroller: Arduino Uno
+* Sensors: Reed switches (64 total, one per square)
+* Each chess piece has a magnet underneath
+* Use multiplexers (74HC4051) to read all sensors
+
+---
+
+## ⚙️ Functional Requirements:
+
+1. Arduino reads all 64 sensors
+2. Detects changes between previous and current board state
+3. Identifies moves like: e2e4
+4. Sends moves via Serial (USB) to PC
+
+---
+
+## 💻 Software Architecture:
+
+### Backend:
+
+* Node.js server
+* Read Serial data from Arduino
+* Parse moves (e.g. "e2e4")
+* Validate moves using chess logic (use chess.js)
+
+### Frontend:
+
+* Next.js app
+* Display interactive chessboard with **high-quality UI similar to Chess.com**
+* Use a modern chessboard library or custom board
+* Must include:
+
+  * Smooth piece animations
+  * Drag & drop pieces
+  * Highlight legal moves
+  * Highlight last move
+  * Move history sidebar
+
+---
+
+## 🎨 UI/UX DESIGN REQUIREMENTS (IMPORTANT):
+
+Design the UI like **Chess.com style**:
+
+* Dark elegant theme (default)
+* Wooden or green board option
+* Smooth animations when pieces move
+* Hover effects on squares
+* Clean typography
+* Minimal but premium layout
+* Sidebar showing:
+
+  * move history
+  * captured pieces
+  * game status
+* Responsive design (mobile + desktop)
+
+Make it look like a **real chess platform product**, not a simple demo.
+
+---
+
+## 🔄 Communication:
+
+* Use WebSocket (Socket.io) between backend and frontend
+* Real-time updates
+
+---
+
+## 🧠 Features:
+
+* Show board state
+* Validate legal moves
+* Show move history
+* Highlight last move
+* Show captured pieces
+* Optional: integrate Stockfish chess engine for AI opponent
+
+---
+
+## 🧪 Development Plan:
+
+Start simple:
+
+1. Build UI chessboard first (mock data)
+2. Add backend with simulated moves
+3. Connect Arduino via Serial
+4. Full real-time system
+
+---
+
+## 🧾 Deliverables:
+
+* Arduino code
+* Node.js backend (Serial + WebSocket)
+* Next.js frontend with Chess.com-like UI
+* Step-by-step setup instructions
+
+---
+
+## ⚠️ Important:
+
+* Keep the code modular and production-ready
+* Make UI visually polished and modern
+* Explain each part clearly
+* Build it like a real startup product

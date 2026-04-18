@@ -1,0 +1,123 @@
+You are a senior full-stack engineer and computer vision developer.
+
+I already have a working chess web application built with Next.js, Node.js, chess.js, and Stockfish.
+
+⚠️ IMPORTANT:
+DO NOT remove or modify the existing mouse drag-and-drop system.
+It must stay fully functional.
+
+You are ONLY allowed to ADD a new feature.
+
+🎯 Goal:
+Add an optional "Camera Hand Control Mode" that allows the user to move chess pieces using their hand in front of a webcam.
+
+The user must be able to:
+
+✔ Play with mouse (default)
+✔ Play with drag & drop (existing system)
+✔ OR activate camera mode and play using hand gestures
+
+All modes must work independently or be switchable without breaking each other.
+
+🧠 Core Requirement:
+Keep existing game logic, mouse controls, and drag & drop exactly as they are.
+
+ONLY add a new input layer (camera control system).
+
+📷 Camera Mode (NEW FEATURE):
+Add a webcam-based control system using computer vision.
+
+Recommended library:
+
+MediaPipe
+
+Optional:
+
+OpenCV
+
+✋ Hand Control Behavior:
+When camera mode is enabled:
+
+Detect hand position in real time
+
+Map hand position to chessboard squares (8x8 grid overlay)
+
+Use gestures:
+
+👉 Pointing = select piece
+
+👉 Move hand = choose destination square
+
+👉 Release gesture = confirm move
+
+Convert gestures into chess moves like:
+e2e4
+
+♟️ Chess Integration:
+Send detected moves into the existing system:
+
+chess.js (game rules & validation)
+
+Stockfish (analysis engine)
+
+Same pipeline as mouse moves
+
+💻 Frontend (Next.js):
+Add:
+
+New toggle button: "Camera Mode ON/OFF"
+
+Webcam preview window
+
+8x8 overlay grid on camera view
+
+Visual feedback (highlight selected square)
+
+Mode indicator:
+
+🖱 Mouse Mode Active
+
+📷 Camera Mode Active
+
+🔄 System Flow:
+Mouse/Drag → existing system (unchanged)
+
+Camera → MediaPipe → gesture detection → chess move → chess.js → UI update → Stockfish
+
+Both systems must work independently without conflicts.
+
+⚡ Constraints:
+DO NOT remove or modify existing mouse/drag system
+
+DO NOT break current gameplay
+
+Camera feature must be OPTIONAL
+
+Performance must remain real-time
+
+🧾 Deliverables:
+New camera control module
+
+MediaPipe integration
+
+UI toggle system
+
+8x8 mapping overlay
+
+Integration with existing chess logic
+
+🚀 Final Result:
+User can:
+
+✔ Play with mouse (unchanged)
+✔ Drag & drop pieces (unchanged)
+✔ Activate camera mode and play with hand gestures
+
+💡 Bonus (if possible):
+Add smooth UI feedback:
+
+Hand tracking cursor
+
+Square highlight
+
+Gesture confirmation animation

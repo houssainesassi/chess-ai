@@ -1,0 +1,49 @@
+just make the move smooth like in chess.com
+i think best way to do it just make the move in the local storage after that send it to the seerver
+
+10 minutes ago
+
+Planning smooth piece movement
+Let me read the current move handling code first:
+
+
+2 actions
+Now let me look at the parent pages to understand the full move flow:
+
+
+3 actions
+Now I have the full picture. Let me also check the single-player Game page:
+
+
+Show less
+
+Opened artifacts/chess-board/src/pages/Game.tsx
+
+Planning optimistic move animations (166 seconds)
+Now I have everything I need. The plan:
+
+Optimistic update — apply the move locally with chess.js the instant the user fires it, so the board re-renders immediately
+Animated overlay — a positioned piece slides from the source square to the destination square over 150ms using a CSS transform transition
+Server call in parallel — onMove is still called immediately alongside the local update
+Guard against double moves — block new input while a move is pending confirmation
+
+2 actions
+Now let me verify there are no type errors and check the browser logs:
+
+
+3 actions
+Typecheck passes and Vite already hot-reloaded the component — no errors. Let me take a screenshot to confirm the board looks right:
+
+
+2 actions
+App is running cleanly. Here's what's now in place for smooth moves:
+
+How it works:
+
+Instant optimistic update — the moment you click or drop a piece, chess.js applies the move locally and the board re-renders immediately with the piece in its new position. No waiting for the server.
+
+Sliding animation — an absolutely-positioned overlay piece renders at the source square and slides to the destination square in 150ms using a smooth cubic-bezier CSS transition (the same easing curve used by chess.com). During the slide, the destination square's piece is hidden so there's no visual doubling.
+
+Parallel server call — the API call goes out at the same time as the local update. If the server confirms it (which it will for valid moves), the optimistic state is swapped for the real state seamlessly. If the server rejects the move (e.g. your turn ended), the board snaps back to the real position.
+
+No double-moves — while a move is pending server confirmation, the board ignores clicks and drags, preventing race conditions.

@@ -1,0 +1,122 @@
+You are a senior full-stack engineer and computer vision developer.
+
+I already have a working Smart Chess web application built with Next.js, Node.js, chess.js, and Stockfish.
+
+⚠️ IMPORTANT:
+DO NOT remove or break any existing functionality.
+
+The current mouse drag & drop system MUST stay fully working.
+
+🎯 Goal:
+Add a NEW optional feature: "Hand Cursor Control Mode" using camera input.
+
+The system must allow BOTH input methods to work together:
+
+✔ Mouse drag & drop (existing system, unchanged)
+✔ Hand as cursor using camera (NEW feature)
+
+Both must be ACTIVE at the same time and work in parallel without conflicts.
+
+🖱️ Mouse System (KEEP AS IS):
+
+Full drag & drop support
+Click-to-move support
+Smooth animations
+Default interaction method
+
+DO NOT modify this system.
+
+🎥 NEW FEATURE: Hand Cursor Mode
+
+Add a new optional mode using webcam input.
+
+Recommended library:
+
+MediaPipe
+
+Optional fallback:
+
+OpenCV
+
+✋ Hand Cursor Behavior:
+The hand must act like a virtual mouse cursor:
+
+Hand position = cursor position on screen
+Index finger pointing = hover/select
+Pinch or stable position = click/confirm action
+Moving hand = move cursor
+
+This cursor must interact with the chessboard UI exactly like a mouse.
+
+♟️ Integration Requirement:
+The hand cursor MUST trigger the same events as the mouse system.
+
+Meaning:
+
+If mouse drags a piece → normal move
+If hand cursor drags a piece → same move system
+Both must call the SAME chess.js game logic
+
+🔄 System Requirement (VERY IMPORTANT):
+Both systems must:
+
+✔ Work at the same time
+✔ Share the same game state
+✔ NOT disable each other
+✔ NOT overwrite each other incorrectly
+✔ Be fully synchronized
+
+If both mouse and hand are used simultaneously, the system must handle conflicts safely using chess.js validation.
+
+💻 Frontend (Next.js):
+Add:
+
+Toggle button: "Hand Cursor Mode ON/OFF"
+Webcam preview window
+Visual cursor overlay showing hand position
+Mode indicators:
+Mouse Active
+Hand Cursor Active
+Both Active (if enabled)
+
+⚡ Interaction Rules:
+
+Mouse = traditional control
+Hand = virtual cursor overlay
+Both interact with same chessboard UI
+
+🧠 Core Architecture:
+Mouse input ─────┐
+├──> shared chess interaction layer → chess.js → UI → Stockfish
+Hand cursor ─────┘
+
+🧩 Constraints:
+
+DO NOT remove mouse system
+DO NOT replace drag & drop
+ONLY ADD hand cursor system
+Must be real-time (<200ms latency target)
+Must be modular and clean
+
+🧾 Deliverables:
+
+Hand tracking module (MediaPipe/OpenCV)
+Cursor mapping system (hand → screen coordinates)
+Integration with existing chess input system
+UI toggle for enabling/disabling hand mode
+Clear explanation of how both systems work together
+
+🚀 Final Result:
+User can:
+
+✔ Play chess with mouse
+✔ Play chess with drag & drop
+✔ Use hand as a virtual cursor
+✔ Use mouse + hand at the same time without conflicts
+
+💡 Bonus (if possible):
+
+Smooth cursor movement
+Click gesture animation
+Cursor trail effect
+Calibration system for better accuracy

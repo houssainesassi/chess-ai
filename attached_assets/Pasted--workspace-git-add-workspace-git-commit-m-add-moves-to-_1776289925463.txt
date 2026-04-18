@@ -1,0 +1,52 @@
+~/workspace$ git add .
+~/workspace$ git commit -m 'add moves to deployment'
+On branch main
+Your branch is ahead of 'origin/main' by 1 commit.
+  (use "git push" to publish your local commits)
+
+nothing to commit, working tree clean
+~/workspace$ git push
+Enumerating objects: 25, done.
+Counting objects: 100% (25/25), done.
+Delta compression using up to 8 threads
+Compressing objects: 100% (13/13), done.
+Writing objects: 100% (13/13), 2.19 KiB | 2.19 MiB/s, done.
+Total 13 (delta 10), reused 0 (delta 0), pack-reused 0 (from 0)
+remote: Resolving deltas: 100% (10/10), completed with 10 local objects.
+To https://github.com/houssainesassi/chess-Board-hmd
+   682643c..1dacf5a  main -> main
+~/workspace$ npm run build
+npm warn Unknown project config "auto-install-peers". This will stop working in the next major version of npm.
+npm warn Unknown project config "strict-peer-dependencies". This will stop working in the next major version of npm.
+
+> workspace@0.0.0 build
+> pnpm run typecheck && pnpm -r --if-present run build
+
+
+> workspace@0.0.0 typecheck /home/runner/workspace
+> pnpm run typecheck:libs && pnpm -r --filter "./artifacts/**" --filter "./scripts" --if-present run typecheck
+
+
+> workspace@0.0.0 typecheck:libs /home/runner/workspace
+> tsc --build
+
+Scope: 4 of 9 workspace projects
+artifacts/api-server typecheck$ tsc -p tsconfig.json --noEmit
+└─ Done in 3.9s
+artifacts/chess-board typecheck$ tsc -p tsconfig.json --noEmit
+│ src/pages/MultiplayerGame.tsx(44,5): error TS2741: Property 'queryKey' is missing in type '{ refetchIn…
+└─ Failed in 7.2s at /home/runner/workspace/artifacts/chess-board
+artifacts/mockup-sandbox typecheck$ tsc -p tsconfig.json --noEmit
+└─ Done in 6.5s
+scripts typecheck$ tsc -p tsconfig.json --noEmit
+└─ Done in 1.3s
+/home/runner/workspace/artifacts/chess-board:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @workspace/chess-board@0.0.0 typecheck: `tsc -p tsconfig.json --noEmit`
+Exit status 2
+ ELIFECYCLE  Command failed with exit code 2.
+npm notice
+npm notice New minor version of npm available! 11.6.2 -> 11.12.1
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v11.12.1
+npm notice To update run: npm install -g npm@11.12.1
+npm notice
+~/workspace$ 
