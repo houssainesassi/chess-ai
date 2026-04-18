@@ -1,0 +1,69 @@
+ader: true
+    cookieHeader: "__clerk_db_jwt_iGvH1SQO=dvb_3CLPjxXZQfE4kfLYSfBLQHvQEpx; __clerk_db_jwt=dvb_3CLPjxXZQfE4kfLYSfBLQHvQEpx; clerk_active_context=sess_3CYEBa75ffxHkwx7WToZHciUtGQ:; __session=eyJhbGciOiJSUzI1NiIsImNhdCI6ImNsX0I3ZDRQRDExMUFBQSIsImtpZCI6Imluc18zQ0xQUlJYVTBCUkZ1UmtpaHhIVk16RGl4WXQiLCJ0eXAiOiJKV1QifQ.eyJhenAiOiJodHRwOi8vbG9jYWxob3N0OjUxNzMiLCJleHAiOjE3NzY1NTQ0MzUsImZ2YSI6WzYsLTFdLCJpYXQiOjE3NzY1NTQzNzUsImlzcyI6Imh0dHBzOi8vZnVubnktcmVkZmlzaC00OC5jbGVyay5hY2NvdW50cy5kZXYiLCJuYmYiOjE3NzY1NTQzNjUsInNpZCI6InNlc3NfM0NZRUJhNzVmZnhIa3d4N1dUb1pIY2lVdEdRIiwic3RzIjoiYWN0aXZlIiwic3ViIjoidXNlcl8zQ1BsdTVIMVFSZ1FpRTU1amg2YnZzZWI0ZW4iLCJ2IjoyfQ.qJcijeJLh_4R7paOdb2Ycz_TFs-bAVfqUXZvsab2ZZz381tLZ2O2J_d5MCudEqIJ_o-7U_t0MWdoyecwvUEufAspfBNQwEyGbX0RsithycUXEsb6OOWHNCWVCNu8IuwzepFo_hxY02Y87KvFuhbOqs72T4L0fbV9vF29D0hkxz4LMZLLdK5LkUfrhXJIYyz6lVU6z3ZIPilE2Gwg5phdGVNyoGLIF6_BYrTFUOCKii83cHUHKtF7J4e1UPwDJGBsG5uZyWZVoHs8WuS-wJdka6fojArge-th1WSm-RAI1SmyY0AE3KeeihVGsUm85liZsdL6hUvhZOP0ZD5pkd2gpQ; __session_iGvH1SQO=eyJhbGciOiJSUzI1NiIsImNhdCI6ImNsX0I3ZDRQRDExMUFBQSIsImtpZCI6Imluc18zQ0xQUlJYVTBCUkZ1UmtpaHhIVk16RGl4WXQiLCJ0eXAiOiJKV1QifQ.eyJhenAiOiJodHRwOi8vbG9jYWxob3N0OjUxNzMiLCJleHAiOjE3NzY1NTQ0MzUsImZ2YSI6WzYsLTFdLCJpYXQiOjE3NzY1NTQzNzUsImlzcyI6Imh0dHBzOi8vZnVubnktcmVkZmlzaC00OC5jbGVyay5hY2NvdW50cy5kZXYiLCJuYmYiOjE3NzY1NTQzNjUsInNpZCI6InNlc3NfM0NZRUJhNzVmZnhIa3d4N1dUb1pIY2lVdEdRIiwic3RzIjoiYWN0aXZlIiwic3ViIjoidXNlcl8zQ1BsdTVIMVFSZ1FpRTU1amg2YnZzZWI0ZW4iLCJ2IjoyfQ.qJcijeJLh_4R7paOdb2Ycz_TFs-bAVfqUXZvsab2ZZz381tLZ2O2J_d5MCudEqIJ_o-7U_t0MWdoyecwvUEufAspfBNQwEyGbX0RsithycUXEsb6OOWHNCWVCNu8IuwzepFo_hxY02Y87KvFuhbOqs72T4L0fbV9vF29D0hkxz4LMZLLdK5LkUfrhXJIYyz6lVU6z3ZIPilE2Gwg5phdGVNyoGLIF6_BYrTFUOCKii83cHUHKtF7J4e1UPwDJGBsG5uZyWZVoHs8WuS-wJdka6fojArge-th1WSm-RAI1SmyY0AE3KeeihVGsUm85liZsdL6hUvhZOP0ZD5pkd2gpQ; __client_uat_iGvH1SQO=1776553968; __client_uat=1776553968"
+    parsedCookieKeys: [
+      "__clerk_db_jwt_iGvH1SQO",
+      "__clerk_db_jwt",
+      "clerk_active_context",
+      "__session",
+      "__session_iGvH1SQO",
+      "__client_uat_iGvH1SQO",
+      "__client_uat"
+    ]
+[00:18:37.266] INFO (105748): request completed
+    req: {
+      "id": 9,
+      "method": "GET",
+      "url": "/api/players"
+    }
+    res: {
+      "statusCode": 401
+    }
+    responseTime: 8
+[00:18:41.281] WARN (105748): requireAuth: unauthorized request
+    authUserId: null
+    hasSessionId: false
+    hasAuthHeader: true
+    cookieHeader: "__clerk_db_jwt_iGvH1SQO=dvb_3CLPjxXZQfE4kfLYSfBLQHvQEpx; __clerk_db_jwt=dvb_3CLPjxXZQfE4kfLYSfBLQHvQEpx; clerk_active_context=sess_3CYEBa75ffxHkwx7WToZHciUtGQ:; __session=eyJhbGciOiJSUzI1NiIsImNhdCI6ImNsX0I3ZDRQRDExMUFBQSIsImtpZCI6Imluc18zQ0xQUlJYVTBCUkZ1UmtpaHhIVk16RGl4WXQiLCJ0eXAiOiJKV1QifQ.eyJhenAiOiJodHRwOi8vbG9jYWxob3N0OjUxNzMiLCJleHAiOjE3NzY1NTQ0MzUsImZ2YSI6WzYsLTFdLCJpYXQiOjE3NzY1NTQzNzUsImlzcyI6Imh0dHBzOi8vZnVubnktcmVkZmlzaC00OC5jbGVyay5hY2NvdW50cy5kZXYiLCJuYmYiOjE3NzY1NTQzNjUsInNpZCI6InNlc3NfM0NZRUJhNzVmZnhIa3d4N1dUb1pIY2lVdEdRIiwic3RzIjoiYWN0aXZlIiwic3ViIjoidXNlcl8zQ1BsdTVIMVFSZ1FpRTU1amg2YnZzZWI0ZW4iLCJ2IjoyfQ.qJcijeJLh_4R7paOdb2Ycz_TFs-bAVfqUXZvsab2ZZz381tLZ2O2J_d5MCudEqIJ_o-7U_t0MWdoyecwvUEufAspfBNQwEyGbX0RsithycUXEsb6OOWHNCWVCNu8IuwzepFo_hxY02Y87KvFuhbOqs72T4L0fbV9vF29D0hkxz4LMZLLdK5LkUfrhXJIYyz6lVU6z3ZIPilE2Gwg5phdGVNyoGLIF6_BYrTFUOCKii83cHUHKtF7J4e1UPwDJGBsG5uZyWZVoHs8WuS-wJdka6fojArge-th1WSm-RAI1SmyY0AE3KeeihVGsUm85liZsdL6hUvhZOP0ZD5pkd2gpQ; __session_iGvH1SQO=eyJhbGciOiJSUzI1NiIsImNhdCI6ImNsX0I3ZDRQRDExMUFBQSIsImtpZCI6Imluc18zQ0xQUlJYVTBCUkZ1UmtpaHhIVk16RGl4WXQiLCJ0eXAiOiJKV1QifQ.eyJhenAiOiJodHRwOi8vbG9jYWxob3N0OjUxNzMiLCJleHAiOjE3NzY1NTQ0MzUsImZ2YSI6WzYsLTFdLCJpYXQiOjE3NzY1NTQzNzUsImlzcyI6Imh0dHBzOi8vZnVubnktcmVkZmlzaC00OC5jbGVyay5hY2NvdW50cy5kZXYiLCJuYmYiOjE3NzY1NTQzNjUsInNpZCI6InNlc3NfM0NZRUJhNzVmZnhIa3d4N1dUb1pIY2lVdEdRIiwic3RzIjoiYWN0aXZlIiwic3ViIjoidXNlcl8zQ1BsdTVIMVFSZ1FpRTU1amg2YnZzZWI0ZW4iLCJ2IjoyfQ.qJcijeJLh_4R7paOdb2Ycz_TFs-bAVfqUXZvsab2ZZz381tLZ2O2J_d5MCudEqIJ_o-7U_t0MWdoyecwvUEufAspfBNQwEyGbX0RsithycUXEsb6OOWHNCWVCNu8IuwzepFo_hxY02Y87KvFuhbOqs72T4L0fbV9vF29D0hkxz4LMZLLdK5LkUfrhXJIYyz6lVU6z3ZIPilE2Gwg5phdGVNyoGLIF6_BYrTFUOCKii83cHUHKtF7J4e1UPwDJGBsG5uZyWZVoHs8WuS-wJdka6fojArge-th1WSm-RAI1SmyY0AE3KeeihVGsUm85liZsdL6hUvhZOP0ZD5pkd2gpQ; __client_uat_iGvH1SQO=1776553968; __client_uat=1776553968"
+    parsedCookieKeys: [
+      "__clerk_db_jwt_iGvH1SQO",
+      "__clerk_db_jwt",
+      "clerk_active_context",
+      "__session",
+      "__session_iGvH1SQO",
+      "__client_uat_iGvH1SQO",
+      "__client_uat"
+    ]
+[00:18:41.281] INFO (105748): request completed
+    req: {
+      "id": 10,
+      "method": "GET",
+      "url": "/api/friends"
+    }
+    res: {
+      "statusCode": 401
+    }
+    responseTime: 8
+[00:18:41.287] WARN (105748): requireAuth: unauthorized request
+    authUserId: null
+    hasSessionId: false
+    hasAuthHeader: true
+    cookieHeader: "__clerk_db_jwt_iGvH1SQO=dvb_3CLPjxXZQfE4kfLYSfBLQHvQEpx; __clerk_db_jwt=dvb_3CLPjxXZQfE4kfLYSfBLQHvQEpx; clerk_active_context=sess_3CYEBa75ffxHkwx7WToZHciUtGQ:; __session=eyJhbGciOiJSUzI1NiIsImNhdCI6ImNsX0I3ZDRQRDExMUFBQSIsImtpZCI6Imluc18zQ0xQUlJYVTBCUkZ1UmtpaHhIVk16RGl4WXQiLCJ0eXAiOiJKV1QifQ.eyJhenAiOiJodHRwOi8vbG9jYWxob3N0OjUxNzMiLCJleHAiOjE3NzY1NTQ0MzUsImZ2YSI6WzYsLTFdLCJpYXQiOjE3NzY1NTQzNzUsImlzcyI6Imh0dHBzOi8vZnVubnktcmVkZmlzaC00OC5jbGVyay5hY2NvdW50cy5kZXYiLCJuYmYiOjE3NzY1NTQzNjUsInNpZCI6InNlc3NfM0NZRUJhNzVmZnhIa3d4N1dUb1pIY2lVdEdRIiwic3RzIjoiYWN0aXZlIiwic3ViIjoidXNlcl8zQ1BsdTVIMVFSZ1FpRTU1amg2YnZzZWI0ZW4iLCJ2IjoyfQ.qJcijeJLh_4R7paOdb2Ycz_TFs-bAVfqUXZvsab2ZZz381tLZ2O2J_d5MCudEqIJ_o-7U_t0MWdoyecwvUEufAspfBNQwEyGbX0RsithycUXEsb6OOWHNCWVCNu8IuwzepFo_hxY02Y87KvFuhbOqs72T4L0fbV9vF29D0hkxz4LMZLLdK5LkUfrhXJIYyz6lVU6z3ZIPilE2Gwg5phdGVNyoGLIF6_BYrTFUOCKii83cHUHKtF7J4e1UPwDJGBsG5uZyWZVoHs8WuS-wJdka6fojArge-th1WSm-RAI1SmyY0AE3KeeihVGsUm85liZsdL6hUvhZOP0ZD5pkd2gpQ; __session_iGvH1SQO=eyJhbGciOiJSUzI1NiIsImNhdCI6ImNsX0I3ZDRQRDExMUFBQSIsImtpZCI6Imluc18zQ0xQUlJYVTBCUkZ1UmtpaHhIVk16RGl4WXQiLCJ0eXAiOiJKV1QifQ.eyJhenAiOiJodHRwOi8vbG9jYWxob3N0OjUxNzMiLCJleHAiOjE3NzY1NTQ0MzUsImZ2YSI6WzYsLTFdLCJpYXQiOjE3NzY1NTQzNzUsImlzcyI6Imh0dHBzOi8vZnVubnktcmVkZmlzaC00OC5jbGVyay5hY2NvdW50cy5kZXYiLCJuYmYiOjE3NzY1NTQzNjUsInNpZCI6InNlc3NfM0NZRUJhNzVmZnhIa3d4N1dUb1pIY2lVdEdRIiwic3RzIjoiYWN0aXZlIiwic3ViIjoidXNlcl8zQ1BsdTVIMVFSZ1FpRTU1amg2YnZzZWI0ZW4iLCJ2IjoyfQ.qJcijeJLh_4R7paOdb2Ycz_TFs-bAVfqUXZvsab2ZZz381tLZ2O2J_d5MCudEqIJ_o-7U_t0MWdoyecwvUEufAspfBNQwEyGbX0RsithycUXEsb6OOWHNCWVCNu8IuwzepFo_hxY02Y87KvFuhbOqs72T4L0fbV9vF29D0hkxz4LMZLLdK5LkUfrhXJIYyz6lVU6z3ZIPilE2Gwg5phdGVNyoGLIF6_BYrTFUOCKii83cHUHKtF7J4e1UPwDJGBsG5uZyWZVoHs8WuS-wJdka6fojArge-th1WSm-RAI1SmyY0AE3KeeihVGsUm85liZsdL6hUvhZOP0ZD5pkd2gpQ; __client_uat_iGvH1SQO=1776553968; __client_uat=1776553968"
+    parsedCookieKeys: [
+      "__clerk_db_jwt_iGvH1SQO",
+      "__clerk_db_jwt",
+      "clerk_active_context",
+      "__session",
+      "__session_iGvH1SQO",
+      "__client_uat_iGvH1SQO",
+      "__client_uat"
+    ]
+[00:18:41.287] INFO (105748): request completed
+    req: {
+      "id": 11,
+      "method": "GET",
+      "url": "/api/players"
+    }
+    res: {
+      "statusCode": 401
+    }
+    responseTime: 4
