@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useAuth } from "@clerk/react";
+import { useAuth } from "@/context/AuthContext";
 import type { UserProfile } from "./use-profile";
 
 export interface FriendEntry {

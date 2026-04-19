@@ -7,9 +7,11 @@ import chatRouter from "./chat";
 import profileRouter from "./profile";
 import leaderboardRouter from "./leaderboard";
 import friendsRouter from "./friends";
+import authRouter from "./auth";
 
 const router: IRouter = Router();
 
+router.use(authRouter);
 router.use(healthRouter);
 router.use(gameRouter);
 router.use(gamesRouter);

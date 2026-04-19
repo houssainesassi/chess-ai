@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useAuth } from "@clerk/react";
+import { useAuth } from "@/context/AuthContext";
 
 export interface MyGame {
   id: string;

@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { useLocation } from "wouter";
-import { useUser } from "@clerk/react";
+import { useUser } from "@/context/AuthContext";
 import { ChessBoard } from "@/components/ChessBoard";
 import { Sidebar } from "@/components/Sidebar";
 import { GameChat } from "@/components/GameChat";

@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useLocation } from "wouter";
-import { useUser, useAuth } from "@clerk/react";
+import { useUser, useAuth } from "@/context/AuthContext";
 import { Chess } from "chess.js";
 import { useQuery } from "@tanstack/react-query";
 import { ChessBoard } from "@/components/ChessBoard";

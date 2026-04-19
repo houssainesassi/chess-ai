@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { useLocation } from "wouter";
-import { useUser } from "@clerk/react";
+import { useUser } from "@/context/AuthContext";
 import { useMyGames } from "@/hooks/use-my-games";
 import { useProfiles } from "@/hooks/use-profile";
 import { PlayerAvatar } from "@/components/PlayerAvatar";

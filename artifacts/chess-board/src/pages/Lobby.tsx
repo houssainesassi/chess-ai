@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
-import { useUser, useClerk } from "@clerk/react";
+import { useUser, useClerkCompat } from "@/context/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { useProfiles } from "@/hooks/use-profile";
 import { useLeaderboard } from "@/hooks/use-leaderboard";
@@ -360,7 +360,7 @@ export default function LobbyPage() {
 
   const [, navigate] = useLocation();
   const { user } = useUser();
-  const { signOut } = useClerk();
+  const { signOut } = useClerkCompat();
   const [challengingIds, setChallengingIds] = useState<Set<string>>(new Set());
   const { toast } = useToast();
 

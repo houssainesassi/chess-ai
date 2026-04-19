@@ -1,11 +1,8 @@
 import { Router } from "express";
 import { eq, inArray } from "drizzle-orm";
-import { createClerkClient } from "@clerk/express";
-import { db, userProfilesTable } from "@workspace/db";
+import { db, userProfilesTable, usersTable } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
 import { logger } from "../lib/logger";
-
-const clerkAdmin = createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY });
 
 const router = Router();
 
@@ -65,29 +62,20 @@ router.get("/profile", requireAuth, async (req, res) => {
 
 router.post("/profile", requireAuth, async (req, res) => {
   const userId = (req as any).userId as string;
+  const userEmail = (req as any).userEmail as string | undefined;
   const { nickname, country, avatarUrl, avatarColor } = req.body;
 
   if (!nickname || typeof nickname !== "string" || nickname.trim().length === 0) {
     res.status(400).json({ error: "validation_error", message: "nickname is required" });
     return;
   }
-
   if (!country || typeof country !== "string" || country.trim().length === 0) {
     res.status(400).json({ error: "validation_error", message: "country is required" });
     return;
   }
-
   if (!avatarColor || typeof avatarColor !== "string") {
     res.status(400).json({ error: "validation_error", message: "avatarColor is required" });
     return;
-  }
-
-  let email: string | null = null;
-  try {
-    const clerkUser = await clerkAdmin.users.getUser(userId);
-    email = clerkUser.emailAddresses?.[0]?.emailAddress ?? null;
-  } catch {
-    // non-critical
   }
 
   try {
@@ -99,7 +87,7 @@ router.post("/profile", requireAuth, async (req, res) => {
         country: country.trim(),
         avatarUrl: avatarUrl ?? null,
         avatarColor,
-        email,
+        email: userEmail ?? null,
       })
       .onConflictDoUpdate({
         target: userProfilesTable.userId,
@@ -108,7 +96,6 @@ router.post("/profile", requireAuth, async (req, res) => {
           country: country.trim(),
           avatarUrl: avatarUrl ?? null,
           avatarColor,
-          email,
           updatedAt: new Date(),
         },
       })
@@ -126,7 +113,7 @@ router.delete("/account", requireAuth, async (req, res) => {
 
   try {
     await db.delete(userProfilesTable).where(eq(userProfilesTable.userId, userId));
-    await clerkAdmin.users.deleteUser(userId);
+    await db.delete(usersTable).where(eq(usersTable.id, userId));
     logger.info({ userId }, "Account deleted");
     res.json({ success: true });
   } catch (err) {

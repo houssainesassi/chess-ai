@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useLocation } from "wouter";
-import { useClerk } from "@clerk/react";
+import { useClerkCompat } from "@/context/AuthContext";
 import { useProfile, useCreateProfile, useDeleteAccount } from "@/hooks/use-profile";
 import { COUNTRIES, randomAvatarColor, getCountryByCode } from "@/lib/countries";
 import { Input } from "@/components/ui/input";
@@ -43,7 +43,7 @@ export default function SettingsPage() {
   }, []);
 
   const [, navigate] = useLocation();
-  const { signOut } = useClerk();
+  const { signOut } = useClerkCompat();
   const { data: profile, isLoading } = useProfile();
   const updateProfile = useCreateProfile();
   const deleteAccount = useDeleteAccount();

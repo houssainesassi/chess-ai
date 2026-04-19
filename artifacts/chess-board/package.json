@@ -84,7 +84,6 @@
     "zod": "catalog:"
   },
   "dependencies": {
-    "@clerk/react": "^6.2.1",
     "@mediapipe/tasks-vision": "^0.10.34"
   }
 }

@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from "react";
-import { useUser } from "@clerk/react";
+import { useUser } from "@/context/AuthContext";
 import { COUNTRIES, randomAvatarColor, getCountryByCode } from "@/lib/countries";
 import { useCreateProfile } from "@/hooks/use-profile";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -36,7 +36,7 @@ export default function OnboardingModal({ open }: OnboardingModalProps) {
   const { user } = useUser();
   const createProfile = useCreateProfile();
 
-  const [nickname, setNickname] = useState(user?.firstName ?? user?.fullName ?? "");
+  const [nickname, setNickname] = useState(user?.username ?? "");
   const [country, setCountry] = useState("");
   const [countrySearch, setCountrySearch] = useState("");
   const [showCountryList, setShowCountryList] = useState(false);
