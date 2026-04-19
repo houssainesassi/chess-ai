@@ -105,7 +105,7 @@ export default function MultiplayerGamePage({ gameId }: MultiplayerGamePageProps
 
   const userId = user?.id ?? "";
   const username =
-    user?.fullName ?? user?.primaryEmailAddress?.emailAddress ?? user?.id ?? "Player";
+    user?.username ?? user?.email ?? user?.id ?? "Player";
 
   const playerIds = useMemo(() => {
     const ids: string[] = [];
