@@ -1,0 +1,101 @@
+Build a modern React + Tailwind CSS UI based on the following design:
+https://noise-ai-17562110.figma.site/
+
+---
+
+### 🎯 Objective
+
+Recreate the design as accurately as possible (pixel-perfect), while keeping the code clean, reusable, and production-ready.
+
+---
+
+### 🎨 UI Requirements
+
+* Match the design layout exactly (spacing, colors, typography)
+* Use Tailwind CSS for styling
+* Create a modern, clean interface
+* Add smooth animations (hover effects, transitions)
+* Ensure full responsiveness (mobile + desktop)
+
+---
+
+### 📄 Pages & Features
+
+#### Lobby Page:
+
+* Title / Branding (Chess AI or similar)
+* Buttons:
+
+  * Quick Match
+  * Play vs AI
+  * Play with Friends
+
+---
+
+### ⚙️ Architecture
+
+* Use React functional components
+* Organize code into reusable components (Button, Card, Layout, etc.)
+* Keep code clean and scalable
+
+---
+
+### 🔗 Backend Integration
+
+* Connect ONLY features that already exist in the backend
+
+* If a UI feature does NOT exist in the backend:
+  → Build it visually only (UI without API connection)
+
+* ALSO:
+  👉 If there are backend features or logic that are NOT present in the design,
+  → integrate them into the UI in a clean and logical way
+  → extend the design while keeping consistency with the original style
+
+* Use proper API handling (fetch / axios)
+
+* Add loading states and error handling
+
+---
+
+### 🧠 Logic Handling
+
+* Respect existing backend logic (auth, matchmaking, game state, etc.)
+* Do NOT invent fake APIs
+* Reuse existing endpoints properly
+* Add missing UI flows if backend supports them (e.g. matchmaking status, loading screen, game status)
+
+---
+
+### 🚫 Important Rules
+
+* Do NOT break existing backend logic
+* Keep clear separation between UI and backend
+* Avoid unnecessary complexity
+* Use mock data only when strictly needed (and clearly mark it)
+
+---
+
+### ✨ Bonus (if possible)
+
+* Add subtle animations (Framer Motion)
+* Improve UX (feedback, transitions, states)
+* Add small enhancements that improve user experience without changing core design
+
+---
+
+### 📦 Tech Stack
+
+* React
+* Tailwind CSS
+* Optional: Framer Motion
+
+---
+
+### ✅ Goal
+
+A clean, scalable frontend that:
+
+* Matches the design
+* Connects properly with the backend
+* AND intelligently includes backend logic even if it’s not shown in the design

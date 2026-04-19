@@ -1,112 +1,67 @@
-import { useEffect } from "react";
-import { Switch, Route, Router as WouterRouter, Redirect } from "wouter";
-import { QueryClientProvider } from "@tanstack/react-query";
+import { Switch, Route, Router as WouterRouter } from "wouter";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { queryClient } from "@/lib/queryClient";
+import { AuthProvider, useAuth } from "@/hooks/use-auth";
+import { Layout } from "@/components/layout";
 import NotFound from "@/pages/not-found";
-import GamePage from "@/pages/Game";
-import MultiplayerGamePage from "@/pages/MultiplayerGame";
-import LobbyPage from "@/pages/Lobby";
-import HomePage from "@/pages/Home";
-import SignInPage from "@/pages/SignIn";
-import SignUpPage from "@/pages/SignUp";
-import OnboardingModal from "@/components/OnboardingModal";
-import SettingsPage from "@/pages/Settings";
-import GameHistoryPage from "@/pages/GameHistory";
-import GameReplayPage from "@/pages/GameReplay";
-import AdminUsersPage from "@/pages/AdminUsers";
-import { useProfile } from "@/hooks/use-profile";
-import { NotificationProvider, useNotifications } from "@/context/NotificationContext";
-import { AuthProvider, useAuth, useUser } from "@/context/AuthContext";
 
-const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
+import AuthPage from "@/pages/auth";
+import LobbyPage from "@/pages/lobby";
+import GamePage from "@/pages/game";
+import MultiplayerGamePage from "@/pages/multiplayer-game";
+import HistoryPage from "@/pages/history";
+import HistoryReplayPage from "@/pages/history-replay";
+import SettingsPage from "@/pages/settings";
 
-function HomeRoute() {
-  const { isSignedIn, isLoaded } = useAuth();
-  if (!isLoaded) return null;
-  return isSignedIn ? <Redirect to="/lobby" /> : <HomePage />;
+const queryClient = new QueryClient();
+
+function ProtectedRoute({ component: Component, ...rest }: any) {
+  const { user, isLoading } = useAuth();
+  
+  if (isLoading) {
+    return <div className="min-h-screen flex items-center justify-center bg-background text-foreground">Loading...</div>;
+  }
+  
+  if (!user) {
+    window.location.href = "/";
+    return null;
+  }
+  
+  return <Component {...rest} />;
 }
 
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isSignedIn, isLoaded } = useAuth();
-  if (!isLoaded) return null;
-  return isSignedIn ? <>{children}</> : <Redirect to="/" />;
-}
+function Router() {
+  const { user } = useAuth();
 
-function FullRouter() {
   return (
-    <Switch>
-      <Route path="/" component={HomeRoute} />
-      <Route path="/sign-in/*?" component={SignInPage} />
-      <Route path="/sign-up/*?" component={SignUpPage} />
-      <Route path="/lobby">
-        <ProtectedRoute><LobbyPage /></ProtectedRoute>
-      </Route>
-      <Route path="/settings">
-        <ProtectedRoute><SettingsPage /></ProtectedRoute>
-      </Route>
-      <Route path="/history">
-        <ProtectedRoute><GameHistoryPage /></ProtectedRoute>
-      </Route>
-      <Route path="/history/:id">
-        {(params) => <ProtectedRoute><GameReplayPage gameId={params.id} /></ProtectedRoute>}
-      </Route>
-      <Route path="/admin/users">
-        <ProtectedRoute><AdminUsersPage /></ProtectedRoute>
-      </Route>
-      <Route path="/game" component={GamePage} />
-      <Route path="/game/:id">
-        {(params) => <ProtectedRoute><MultiplayerGamePage gameId={params.id} /></ProtectedRoute>}
-      </Route>
-      <Route component={NotFound} />
-    </Switch>
-  );
-}
-
-function OnboardingGate() {
-  const { isSignedIn, isLoaded } = useAuth();
-  const { data: profile, isLoading } = useProfile();
-
-  if (!isLoaded || !isSignedIn) return null;
-  if (isLoading) return null;
-
-  return <OnboardingModal open={profile === null} />;
-}
-
-function UserSocketRegistrar() {
-  const { user } = useUser();
-  const { registerUser } = useNotifications();
-
-  useEffect(() => {
-    if (user?.id) registerUser(user.id);
-  }, [user?.id, registerUser]);
-
-  return null;
-}
-
-function AppProviders() {
-  return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <NotificationProvider>
-          <UserSocketRegistrar />
-          <OnboardingGate />
-          <FullRouter />
-          <Toaster />
-        </NotificationProvider>
-      </TooltipProvider>
-    </QueryClientProvider>
+    <Layout>
+      <Switch>
+        <Route path="/" component={user ? () => { window.location.href = "/lobby"; return null; } : AuthPage} />
+        <Route path="/lobby" component={() => <ProtectedRoute component={LobbyPage} />} />
+        <Route path="/game" component={() => <ProtectedRoute component={GamePage} />} />
+        <Route path="/game/:id" component={() => <ProtectedRoute component={MultiplayerGamePage} />} />
+        <Route path="/history" component={() => <ProtectedRoute component={HistoryPage} />} />
+        <Route path="/history/:id" component={() => <ProtectedRoute component={HistoryReplayPage} />} />
+        <Route path="/settings" component={() => <ProtectedRoute component={SettingsPage} />} />
+        <Route component={NotFound} />
+      </Switch>
+    </Layout>
   );
 }
 
 function App() {
   return (
-    <WouterRouter base={basePath}>
+    <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <AppProviders />
+        <TooltipProvider>
+          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+            <Router />
+          </WouterRouter>
+          <Toaster />
+        </TooltipProvider>
       </AuthProvider>
-    </WouterRouter>
+    </QueryClientProvider>
   );
 }
 
