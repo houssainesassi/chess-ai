@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Link } from "wouter";
 
 export default function HistoryPage() {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const [games, setGames] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -17,7 +17,8 @@ export default function HistoryPage() {
           headers: { Authorization: `Bearer ${token}` }
         });
         if (res.ok) {
-          setGames(await res.json());
+          const data = await res.json();
+          setGames(Array.isArray(data) ? data : (data.games || []));
         }
       } catch (err) {
         console.error(err);
@@ -25,15 +26,19 @@ export default function HistoryPage() {
         setLoading(false);
       }
     }
-    fetchHistory();
+    if (token) fetchHistory();
   }, [token]);
+
+  const didWin = (g: any) =>
+    (g.winner === "white" && g.whitePlayerId === user?.id) ||
+    (g.winner === "black" && g.blackPlayerId === user?.id);
 
   const stats = {
     total: games.length,
-    wins: games.filter(g => g.winner === "me").length, // Simplification
-    losses: games.filter(g => g.winner !== "me" && g.winner !== null).length,
+    wins: games.filter(didWin).length,
+    losses: games.filter(g => g.winner && g.winner !== "draw" && !didWin(g)).length,
     draws: games.filter(g => g.winner === "draw").length,
-    accuracy: 84.5 // Mock for now
+    accuracy: 84.5
   };
 
   return (
@@ -88,23 +93,28 @@ export default function HistoryPage() {
               {loading ? (
                 <div className="p-8 text-center text-muted-foreground">Loading history...</div>
               ) : games.length > 0 ? (
-                games.map(game => (
+                games.map(game => {
+                  const won = didWin(game);
+                  const draw = game.winner === "draw";
+                  const opponentId = game.whitePlayerId === user?.id ? game.blackPlayerId : game.whitePlayerId;
+                  return (
                   <Link key={game.id} href={`/history/${game.id}`} className="flex items-center justify-between p-4 hover:bg-muted/50 transition-colors">
                     <div className="flex items-center gap-4">
-                      <div className={`w-2 h-12 rounded ${game.winner === 'me' ? 'bg-green-500' : 'bg-red-500'}`}></div>
+                      <div className={`w-2 h-12 rounded ${won ? 'bg-green-500' : draw ? 'bg-yellow-500' : 'bg-red-500'}`}></div>
                       <div>
-                        <div className="font-bold mb-1">vs {game.opponent || 'Unknown'}</div>
+                        <div className="font-bold mb-1">vs {opponentId ? opponentId.slice(0, 8) : 'Unknown'}</div>
                         <div className="text-sm text-muted-foreground">{new Date(game.createdAt).toLocaleDateString()}</div>
                       </div>
                     </div>
                     <div className="flex gap-4 items-center">
                       <Badge variant="outline">{game.status}</Badge>
-                      <Badge variant={game.winner === 'me' ? 'default' : 'destructive'} className={game.winner === 'me' ? 'bg-green-500 hover:bg-green-600' : ''}>
-                        {game.winner === 'me' ? 'Victory' : game.winner === 'draw' ? 'Draw' : 'Defeat'}
+                      <Badge variant={won ? 'default' : 'destructive'} className={won ? 'bg-green-500 hover:bg-green-600' : draw ? 'bg-yellow-500 hover:bg-yellow-600 text-black' : ''}>
+                        {won ? 'Victory' : draw ? 'Draw' : 'Defeat'}
                       </Badge>
                     </div>
                   </Link>
-                ))
+                  );
+                })
               ) : (
                 <div className="p-8 text-center text-muted-foreground">No completed games found.</div>
               )}

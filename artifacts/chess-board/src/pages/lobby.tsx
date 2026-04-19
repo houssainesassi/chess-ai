@@ -24,8 +24,8 @@ export default function LobbyPage() {
           fetch("/api/friends", { headers: { Authorization: `Bearer ${token}` } })
         ]);
         
-        if (lbRes.ok) setLeaderboard(await lbRes.json());
-        if (frRes.ok) setFriends(await frRes.json());
+        if (lbRes.ok) { const d = await lbRes.json(); setLeaderboard(Array.isArray(d) ? d : (d.leaderboard || [])); }
+        if (frRes.ok) { const d = await frRes.json(); setFriends(Array.isArray(d) ? d : (d.friends || [])); }
       } catch (err) {
         console.error("Failed to fetch lobby data", err);
       } finally {
@@ -104,25 +104,28 @@ export default function LobbyPage() {
               {loading ? (
                 <div className="p-4 text-center text-muted-foreground">Loading leaderboard...</div>
               ) : leaderboard.length > 0 ? (
-                leaderboard.map((player, i) => (
-                  <div key={player.username} className="flex items-center justify-between p-4 hover:bg-muted/50 transition-colors">
+                leaderboard.map((player, i) => {
+                  const name = player.nickname || player.username || player.userId?.slice(0, 8) || "Player";
+                  return (
+                  <div key={player.userId || i} className="flex items-center justify-between p-4 hover:bg-muted/50 transition-colors">
                     <div className="flex items-center gap-4">
                       <span className={`font-mono text-lg w-6 text-center ${i === 0 ? "text-yellow-500" : i === 1 ? "text-gray-400" : i === 2 ? "text-amber-600" : "text-muted-foreground"}`}>
                         #{i + 1}
                       </span>
-                      <div className="w-8 h-8 rounded bg-secondary flex items-center justify-center text-sm font-bold">
-                        {player.username.charAt(0).toUpperCase()}
+                      <div className="w-8 h-8 rounded flex items-center justify-center text-sm font-bold" style={{ background: player.avatarColor || "#555" }}>
+                        {name.charAt(0).toUpperCase()}
                       </div>
-                      <span className="font-medium">{player.username}</span>
+                      <span className="font-medium">{name}</span>
                     </div>
                     <div className="flex items-center gap-4">
                       <span className="text-sm text-muted-foreground">{player.wins || 0} Wins</span>
                       <Badge variant="outline" className="font-mono text-sm border-primary/20 text-primary bg-primary/10">
-                        {player.rating || 1200}
+                        {player.gamesPlayed || 0} games
                       </Badge>
                     </div>
                   </div>
-                ))
+                  );
+                })
               ) : (
                 <div className="p-4 text-center text-muted-foreground">No players found</div>
               )}
@@ -143,22 +146,26 @@ export default function LobbyPage() {
             {loading ? (
               <div className="p-4 text-center text-muted-foreground text-sm">Loading friends...</div>
             ) : friends.length > 0 ? (
-              friends.map(friend => (
+              friends.map(friend => {
+                const profile = friend.profile;
+                const name = profile?.nickname || friend.username || "Friend";
+                return (
                 <div key={friend.id} className="flex items-center justify-between p-2 rounded hover:bg-muted transition-colors cursor-pointer">
                   <div className="flex items-center gap-3">
                     <div className="relative">
-                      <div className="w-8 h-8 rounded bg-secondary flex items-center justify-center text-sm font-bold">
-                        {friend.username.charAt(0).toUpperCase()}
+                      <div className="w-8 h-8 rounded flex items-center justify-center text-sm font-bold" style={{ background: profile?.avatarColor || "#555" }}>
+                        {name.charAt(0).toUpperCase()}
                       </div>
-                      <div className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-card ${friend.status === 'online' ? 'bg-green-500' : 'bg-gray-500'}`}></div>
+                      <div className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-card bg-gray-500`}></div>
                     </div>
                     <div className="flex flex-col">
-                      <span className="text-sm font-medium">{friend.username}</span>
+                      <span className="text-sm font-medium">{name}</span>
                     </div>
                   </div>
-                  <span className="text-xs text-muted-foreground font-mono">{friend.rating || 1200}</span>
+                  <span className="text-xs text-muted-foreground font-mono">{friend.status}</span>
                 </div>
-              ))
+                );
+              })
             ) : (
               <div className="p-8 text-center flex flex-col items-center">
                 <Users className="w-8 h-8 text-muted-foreground mb-2 opacity-50" />

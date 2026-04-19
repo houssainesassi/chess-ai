@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
-import { Card } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Chess } from "chess.js";
@@ -13,6 +13,7 @@ export default function HistoryReplayPage() {
   const { id } = useParams();
   const { token } = useAuth();
   const [game, setGame] = useState<any>(null);
+  const [moveHistory, setMoveHistory] = useState<any[]>([]);
   const [currentMoveIndex, setCurrentMoveIndex] = useState(-1);
   const [chess] = useState(new Chess());
   const [fen, setFen] = useState(chess.fen());
@@ -28,12 +29,29 @@ export default function HistoryReplayPage() {
         if (res.ok) {
           const data = await res.json();
           setGame(data);
-          if (data.moveHistory && data.moveHistory.length > 0) {
-            // Load fen to end
+          // Reconstruct move history from PGN or UCI moves array
+          const temp = new Chess();
+          let history: any[] = [];
+          if (data.pgn && data.pgn.trim()) {
+            try {
+              temp.loadPgn(data.pgn);
+              history = temp.history({ verbose: true });
+            } catch (_) {}
+          } else if (Array.isArray(data.moves) && data.moves.length > 0) {
+            for (const uci of data.moves) {
+              const from = uci.slice(0, 2);
+              const to = uci.slice(2, 4);
+              const promotion = uci.length === 5 ? uci[4] : undefined;
+              const move = temp.move({ from, to, promotion });
+              if (move) history.push(move);
+            }
+          }
+          setMoveHistory(history);
+          if (history.length > 0) {
             chess.reset();
-            data.moveHistory.forEach((m: any) => chess.move(m.san));
+            history.forEach(m => chess.move(m.san));
             setFen(chess.fen());
-            setCurrentMoveIndex(data.moveHistory.length - 1);
+            setCurrentMoveIndex(history.length - 1);
           }
         }
       } catch (err) {
@@ -41,48 +59,36 @@ export default function HistoryReplayPage() {
       }
     }
     if (token && id) loadGame();
-  }, [id, token, chess]);
+  }, [id, token]);
 
   useEffect(() => {
-    if (!game || currentMoveIndex < 0) return;
+    if (!game || moveHistory.length === 0) return;
     
-    // Play moves up to current index
     chess.reset();
     for (let i = 0; i <= currentMoveIndex; i++) {
-      if (game.moveHistory[i]) {
-        chess.move(game.moveHistory[i].san);
-      }
+      if (moveHistory[i]) chess.move(moveHistory[i].san);
     }
     const newFen = chess.fen();
     setFen(newFen);
 
-    // Trigger analysis
     async function getAnalysis() {
       setAnalyzing(true);
       try {
         const res = await fetch("/api/analyze", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ 
-            fen: newFen,
-            depth: 10,
-            lastMove: game.moveHistory[currentMoveIndex]?.move // Assuming format
-          })
+          body: JSON.stringify({ fen: newFen, depth: 10 })
         });
-        if (res.ok) {
-          setAnalysis(await res.json());
-        }
-      } catch (e) {
-        // ignore
+        if (res.ok) setAnalysis(await res.json());
+      } catch (_) {
       } finally {
         setAnalyzing(false);
       }
     }
     
-    // Only analyze if we aren't playing very fast, maybe add a debounce in real app
     const timer = setTimeout(getAnalysis, 500);
     return () => clearTimeout(timer);
-  }, [currentMoveIndex, game, chess]);
+  }, [currentMoveIndex, game, moveHistory]);
 
   const goToMove = (index: number) => {
     setCurrentMoveIndex(index);
@@ -142,9 +148,9 @@ export default function HistoryReplayPage() {
           </div>
 
           <div className="w-full max-w-md mt-6 flex justify-center gap-2">
-            <Button variant="outline" size="icon" onClick={() => goToMove(0)} disabled={currentMoveIndex < 0}><ChevronLeft className="w-4 h-4" /></Button>
-            <Button variant="outline" size="icon" onClick={() => goToMove(currentMoveIndex - 1)} disabled={currentMoveIndex < 0}><ChevronLeft className="w-4 h-4" /></Button>
-            <Button variant="outline" size="icon" onClick={() => goToMove(currentMoveIndex + 1)} disabled={currentMoveIndex >= (game.moveHistory?.length || 0) - 1}><ChevronRight className="w-4 h-4" /></Button>
+            <Button variant="outline" size="icon" onClick={() => goToMove(0)} disabled={currentMoveIndex <= 0}><ChevronLeft className="w-4 h-4" /></Button>
+            <Button variant="outline" size="icon" onClick={() => goToMove(currentMoveIndex - 1)} disabled={currentMoveIndex <= 0}><ChevronLeft className="w-4 h-4" /></Button>
+            <Button variant="outline" size="icon" onClick={() => goToMove(currentMoveIndex + 1)} disabled={currentMoveIndex >= moveHistory.length - 1}><ChevronRight className="w-4 h-4" /></Button>
           </div>
 
           {analysis && (
@@ -170,9 +176,9 @@ export default function HistoryReplayPage() {
           <Card className="bg-card border-border flex-1 flex flex-col">
             <div className="p-4 border-b border-border font-bold">Move List</div>
             <div className="flex-1 overflow-auto p-2">
-              {game.moveHistory && game.moveHistory.length > 0 ? (
+              {moveHistory.length > 0 ? (
                 <div className="grid grid-cols-2 gap-1 text-sm font-mono">
-                  {game.moveHistory.reduce((result: any[], move: any, index: number) => {
+                  {moveHistory.reduce((result: any[], move: any, index: number) => {
                     if (index % 2 === 0) result.push([move]);
                     else result[result.length - 1].push(move);
                     return result;

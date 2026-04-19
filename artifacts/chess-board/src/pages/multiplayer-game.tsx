@@ -87,19 +87,21 @@ export default function MultiplayerGamePage() {
 
     const loadGame = async () => {
       try {
-        // Try to join first
+        // Try to join — a 400 here means we're the creator, that's fine
         await fetch(`/api/games/${id}/join`, { 
           method: "POST", 
           headers: { Authorization: `Bearer ${token}` }
         });
-        
+      } catch (_) { /* ignore */ }
+
+      try {
         const res = await fetch(`/api/games/${id}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         if (!res.ok) throw new Error("Failed to load game");
         setGame(await res.json());
       } catch (err) {
-        toast({ title: "Error", description: "Failed to join game", variant: "destructive" });
+        toast({ title: "Error", description: "Failed to load game", variant: "destructive" });
         setLocation("/lobby");
       }
     };
@@ -112,23 +114,25 @@ export default function MultiplayerGamePage() {
     });
 
     newSocket.on("connect", () => {
-      newSocket.emit("join_room", id);
+      newSocket.emit("joinGame", { gameId: id });
+      if (user?.id) newSocket.emit("registerUser", { userId: user.id });
     });
 
-    newSocket.on("game_updated", (updatedGame) => {
+    newSocket.on("roomUpdate", (updatedGame: any) => {
       setGame(updatedGame);
     });
 
-    newSocket.on("chat_message", (msg) => {
-      setMessages(prev => [...prev, msg]);
+    newSocket.on("chatMessage", (msg: any) => {
+      setMessages(prev => [...prev, { sender: msg.username, text: msg.message }]);
     });
 
     setSocket(newSocket);
 
     return () => {
+      newSocket.emit("leaveGame", { gameId: id });
       newSocket.disconnect();
     };
-  }, [id, token]);
+  }, [id, token, user?.id]);
 
   const handlePieceDrop = async (sourceSquare: string, targetSquare: string) => {
     try {
@@ -150,12 +154,29 @@ export default function MultiplayerGamePage() {
 
   const sendChat = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!chatMsg.trim() || !socket) return;
-    socket.emit("send_message", { roomId: id, text: chatMsg });
+    if (!chatMsg.trim() || !socket || !user) return;
+    socket.emit("sendMessage", { gameId: id, userId: user.id, username: user.username, message: chatMsg });
+    setMessages(prev => [...prev, { sender: user.username, text: chatMsg }]);
     setChatMsg("");
   };
 
-  if (!game) return <div className="p-8 text-center">Loading game...</div>;
+  if (!game) return <div className="p-8 text-center text-muted-foreground">Loading game...</div>;
+
+  if (game.status === "waiting") {
+    return (
+      <div className="p-8 flex flex-col items-center justify-center gap-6 min-h-[60vh]">
+        <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center animate-pulse">
+          <ArrowLeft className="w-8 h-8 text-primary rotate-180" />
+        </div>
+        <div className="text-center space-y-2">
+          <h2 className="text-2xl font-bold">Waiting for Opponent</h2>
+          <p className="text-muted-foreground">Share the game link or wait for someone to join.</p>
+          <p className="text-xs text-muted-foreground font-mono bg-muted px-3 py-1 rounded">{window.location.href}</p>
+        </div>
+        <Button variant="outline" onClick={() => setLocation("/lobby")}><ArrowLeft className="w-4 h-4 mr-2" /> Back to Lobby</Button>
+      </div>
+    );
+  }
 
   const chess = new Chess(game.fen);
   const myColor = game.whitePlayerId === user?.id ? 'w' : 'b';
