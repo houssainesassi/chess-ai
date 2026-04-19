@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
-import { Globe2, Bot, Plus, Swords, UserPlus, Clock } from "lucide-react";
+import { Globe2, Bot, Plus, Swords, UserPlus, Clock, Users } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 export default function LobbyPage() {
