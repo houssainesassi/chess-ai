@@ -298,7 +298,7 @@ export default function GamePage() {
     : "";
 
   return (
-    <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+    <div className="flex-1 flex flex-col min-h-0 overflow-hidden relative">
 
       {/* ── Top bar: opponent ── */}
       <div className="h-14 shrink-0 flex items-center px-3 gap-3 bg-card border-b border-border">
