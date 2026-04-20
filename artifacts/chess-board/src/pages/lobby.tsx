@@ -6,8 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/hooks/use-auth";
 import { api, type FriendData, type LeaderboardEntry, type Profile } from "@/lib/api";
-import { Globe2, Bot, UserPlus, Clock, Swords, Search, Check, X, ExternalLink, ChevronDown, ChevronUp } from "lucide-react";
+import { Globe2, Bot, UserPlus, Clock, Swords, Search, Check, X, ExternalLink, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { io, Socket } from "socket.io-client";
 
 export default function LobbyPage() {
   const { token, user } = useAuth();
@@ -24,6 +25,11 @@ export default function LobbyPage() {
   const [showSearch, setShowSearch] = useState(false);
   const [showPending, setShowPending] = useState(true);
   const searchTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  // Matchmaking state
+  const [isMatchmaking, setIsMatchmaking] = useState(false);
+  const [matchmakingStatus, setMatchmakingStatus] = useState("Searching for opponent...");
+  const matchmakingSocketRef = useRef<Socket | null>(null);
 
   const fetchData = async () => {
     if (!token) return;
@@ -73,14 +79,60 @@ export default function LobbyPage() {
     }
   };
 
-  const createOnlineGame = async () => {
-    try {
-      const game = await api.createGame(token!);
-      setLocation(`/game/${game.id}`);
-    } catch (err) {
-      toast({ title: "Failed to create online game", variant: "destructive" });
-    }
+  const startMatchmaking = () => {
+    if (!user?.id) return;
+
+    setIsMatchmaking(true);
+    setMatchmakingStatus("Searching for opponent...");
+
+    const socket = io({
+      path: "/api/socket.io",
+      auth: { token },
+    });
+
+    matchmakingSocketRef.current = socket;
+
+    socket.on("connect", () => {
+      socket.emit("registerUser", { userId: user.id });
+      socket.emit("joinMatchmaking", { userId: user.id });
+    });
+
+    socket.on("matchmakingQueued", ({ position }: { position: number }) => {
+      setMatchmakingStatus(`In queue (position ${position})...`);
+    });
+
+    socket.on("matchFound", ({ gameId }: { gameId: string }) => {
+      setIsMatchmaking(false);
+      socket.disconnect();
+      matchmakingSocketRef.current = null;
+      toast({ title: "Match found! Starting game..." });
+      setLocation(`/game/${gameId}`);
+    });
+
+    socket.on("matchmakingError", () => {
+      toast({ title: "Matchmaking error", variant: "destructive" });
+      cancelMatchmaking();
+    });
   };
+
+  const cancelMatchmaking = () => {
+    if (matchmakingSocketRef.current && user?.id) {
+      matchmakingSocketRef.current.emit("leaveMatchmaking", { userId: user.id });
+      matchmakingSocketRef.current.disconnect();
+      matchmakingSocketRef.current = null;
+    }
+    setIsMatchmaking(false);
+  };
+
+  // Clean up on unmount
+  useEffect(() => {
+    return () => {
+      if (matchmakingSocketRef.current && user?.id) {
+        matchmakingSocketRef.current.emit("leaveMatchmaking", { userId: user.id });
+        matchmakingSocketRef.current.disconnect();
+      }
+    };
+  }, [user?.id]);
 
   const sendFriendRequest = async (toUserId: string) => {
     if (!token) return;
@@ -138,18 +190,45 @@ export default function LobbyPage() {
 
   return (
     <div className="p-4 md:p-8 max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+      {/* Matchmaking overlay */}
+      {isMatchmaking && (
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center backdrop-blur-sm">
+          <div className="bg-card border border-border rounded-2xl p-10 flex flex-col items-center gap-6 shadow-2xl max-w-sm w-full mx-4 animate-in fade-in zoom-in duration-300">
+            <div className="relative w-20 h-20 flex items-center justify-center">
+              <div className="absolute inset-0 rounded-full border-4 border-green-500/20 animate-ping" />
+              <div className="absolute inset-2 rounded-full border-4 border-green-500/40 animate-ping animation-delay-150" />
+              <Globe2 className="w-10 h-10 text-green-500 relative z-10" />
+            </div>
+            <div className="text-center space-y-1">
+              <h2 className="text-xl font-bold">Finding a Match</h2>
+              <p className="text-muted-foreground text-sm flex items-center gap-2 justify-center">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                {matchmakingStatus}
+              </p>
+            </div>
+            <Button variant="outline" className="w-full" onClick={cancelMatchmaking}>
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
+
       <div className="lg:col-span-2 space-y-6">
         <h1 className="text-3xl font-bold">Play Chess</h1>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Card className="bg-card border-border hover:border-primary transition-colors cursor-pointer group" onClick={createOnlineGame}>
+          <Card
+            className="bg-card border-border hover:border-green-500 transition-colors cursor-pointer group"
+            onClick={startMatchmaking}
+          >
             <CardContent className="p-6 flex flex-col items-center text-center space-y-4">
               <div className="w-16 h-16 rounded-full bg-green-500/10 flex items-center justify-center group-hover:scale-110 transition-transform">
                 <Globe2 className="w-8 h-8 text-green-500" />
               </div>
               <div>
                 <h3 className="text-xl font-bold mb-1">Play Online</h3>
-                <p className="text-sm text-muted-foreground">Play vs another player in real-time</p>
+                <p className="text-sm text-muted-foreground">Auto-match with another player in real-time</p>
               </div>
               <div className="flex gap-2 justify-center flex-wrap">
                 <Badge variant="secondary" className="bg-muted text-muted-foreground"><Clock className="w-3 h-3 mr-1" /> 10 min</Badge>

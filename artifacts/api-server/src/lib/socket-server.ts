@@ -3,10 +3,16 @@ import { Server as SocketIOServer } from "socket.io";
 import { logger } from "./logger";
 import { chessEngine } from "./chess-engine";
 import type { GameState } from "./chess-engine";
-import { db, chatMessagesTable } from "@workspace/db";
-import { eq, asc } from "drizzle-orm";
+import { db, chatMessagesTable, chessGamesTable } from "@workspace/db";
+import { eq, and } from "drizzle-orm";
+import { gameRoomManager } from "./game-room-manager";
 
 let io: SocketIOServer | null = null;
+
+const INITIAL_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+
+// Matchmaking queue: userId -> socketId
+const matchmakingQueue = new Map<string, string>();
 
 export function initSocketServer(httpServer: HttpServer): SocketIOServer {
   io = new SocketIOServer(httpServer, {
@@ -39,6 +45,60 @@ export function initSocketServer(httpServer: HttpServer): SocketIOServer {
       }
     });
 
+    // ── Matchmaking ──────────────────────────────────────────────────
+    socket.on("joinMatchmaking", async ({ userId }: { userId: string }) => {
+      if (!userId) return;
+      logger.info({ socketId: socket.id, userId }, "Player joining matchmaking queue");
+
+      // Remove stale entry for this user
+      matchmakingQueue.delete(userId);
+
+      // Find any other waiting player
+      const waiting = [...matchmakingQueue.entries()].find(([uid]) => uid !== userId);
+
+      if (waiting) {
+        const [opponentId] = waiting;
+        matchmakingQueue.delete(opponentId);
+
+        try {
+          // Randomly assign colours
+          const [whiteId, blackId] =
+            Math.random() < 0.5 ? [opponentId, userId] : [userId, opponentId];
+
+          const [game] = await db
+            .insert(chessGamesTable)
+            .values({
+              whitePlayerId: whiteId,
+              blackPlayerId: blackId,
+              status: "active",
+              fen: INITIAL_FEN,
+            })
+            .returning();
+
+          gameRoomManager.getOrCreate(game.id);
+          logger.info({ gameId: game.id, whiteId, blackId }, "Match found");
+
+          io?.to(`user:${opponentId}`).emit("matchFound", { gameId: game.id });
+          io?.to(`user:${userId}`).emit("matchFound", { gameId: game.id });
+        } catch (err) {
+          logger.error({ err }, "Failed to create matched game");
+          socket.emit("matchmakingError", { message: "Failed to create game" });
+        }
+      } else {
+        matchmakingQueue.set(userId, socket.id);
+        socket.emit("matchmakingQueued", { position: matchmakingQueue.size });
+        logger.info({ userId, queueSize: matchmakingQueue.size }, "Player added to queue");
+      }
+    });
+
+    socket.on("leaveMatchmaking", ({ userId }: { userId: string }) => {
+      if (userId) {
+        matchmakingQueue.delete(userId);
+        logger.info({ userId }, "Player left matchmaking queue");
+      }
+    });
+
+    // ── Chat ─────────────────────────────────────────────────────────
     socket.on(
       "sendMessage",
       async ({
@@ -67,7 +127,87 @@ export function initSocketServer(httpServer: HttpServer): SocketIOServer {
       }
     );
 
+    // ── Resign ───────────────────────────────────────────────────────
+    socket.on(
+      "resignGame",
+      async ({ gameId, userId }: { gameId: string; userId: string }) => {
+        if (!gameId || !userId) return;
+
+        try {
+          const [game] = await db
+            .select()
+            .from(chessGamesTable)
+            .where(eq(chessGamesTable.id, gameId));
+
+          if (!game || game.status !== "active") return;
+
+          const isWhite = game.whitePlayerId === userId;
+          const isBlack = game.blackPlayerId === userId;
+          if (!isWhite && !isBlack) return;
+
+          const winner = isWhite ? "black" : "white";
+
+          await db
+            .update(chessGamesTable)
+            .set({ status: "completed", winner, updatedAt: new Date() })
+            .where(and(eq(chessGamesTable.id, gameId), eq(chessGamesTable.status, "active")));
+
+          io?.to(`game:${gameId}`).emit("playerResigned", { resignedUserId: userId, winner });
+          logger.info({ gameId, userId, winner }, "Player resigned");
+        } catch (err) {
+          logger.error({ err }, "Failed to process resign");
+        }
+      }
+    );
+
+    // ── Draw offer / accept / decline ────────────────────────────────
+    socket.on("offerDraw", ({ gameId, userId }: { gameId: string; userId: string }) => {
+      if (!gameId || !userId) return;
+      socket.to(`game:${gameId}`).emit("drawOffered", { byUserId: userId });
+      logger.info({ gameId, userId }, "Draw offered");
+    });
+
+    socket.on(
+      "acceptDraw",
+      async ({ gameId }: { gameId: string }) => {
+        if (!gameId) return;
+
+        try {
+          const [game] = await db
+            .select()
+            .from(chessGamesTable)
+            .where(eq(chessGamesTable.id, gameId));
+
+          if (!game || game.status !== "active") return;
+
+          await db
+            .update(chessGamesTable)
+            .set({ status: "completed", winner: "draw", updatedAt: new Date() })
+            .where(and(eq(chessGamesTable.id, gameId), eq(chessGamesTable.status, "active")));
+
+          io?.to(`game:${gameId}`).emit("drawAccepted", {});
+          logger.info({ gameId }, "Draw accepted");
+        } catch (err) {
+          logger.error({ err }, "Failed to process draw acceptance");
+        }
+      }
+    );
+
+    socket.on("declineDraw", ({ gameId }: { gameId: string }) => {
+      if (!gameId) return;
+      socket.to(`game:${gameId}`).emit("drawDeclined", {});
+    });
+
+    // ── Disconnect ───────────────────────────────────────────────────
     socket.on("disconnect", () => {
+      // Remove from matchmaking queue if still there
+      for (const [userId, sid] of matchmakingQueue.entries()) {
+        if (sid === socket.id) {
+          matchmakingQueue.delete(userId);
+          logger.info({ userId }, "Removed disconnected player from matchmaking queue");
+          break;
+        }
+      }
       logger.info({ socketId: socket.id }, "Client disconnected");
     });
   });

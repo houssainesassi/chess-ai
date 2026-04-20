@@ -64,6 +64,37 @@ A full-stack chess platform with real-time multiplayer, AI analysis, game histor
 - `src/hooks/use-socket-notifications.tsx` — Global Socket.IO listener for game invites, friend requests
 - `src/components/layout.tsx` — Sidebar nav with My Profile link
 
+## New Features (Added)
+
+### Matchmaking System
+- **Auto-matchmaking queue** — clicking "Play Online" enters a socket-based queue; two players auto-matched in real time
+- Socket events: `joinMatchmaking`, `leaveMatchmaking`, `matchFound`, `matchmakingQueued`, `matchmakingError`
+- Randomly assigns white/black colours; game created in DB as `active` immediately
+
+### In-Game Multiplayer Features
+- **Resign** — confirm-guarded resign button; opponent receives `playerResigned` event and game-over overlay
+- **Offer Draw** — `offerDraw` socket event; opponent sees popup to Accept/Decline; `acceptDraw` writes `winner=draw` to DB
+- **Game Over Overlay** — animated modal showing Win/Loss/Draw with reason, links to lobby and analysis
+- Socket events: `resignGame`, `offerDraw`, `acceptDraw`, `declineDraw`, `playerResigned`, `drawOffered`, `drawAccepted`, `drawDeclined`
+
+### Voice Control (multiplayer game)
+- Browser Web Speech API (`SpeechRecognition`) — toggle with Voice button in game controls
+- Listens for move commands in format "e2 to e4"; highlights transcript in real-time
+- Works in Chrome/Edge; gracefully shows error in unsupported browsers
+
+### Hand Camera Placeholder
+- Camera button opens placeholder modal explaining gesture feature coming soon
+- Non-blocking, fully removable in future
+
+### Voice Commentary (game analysis/replay)
+- Toggle AI voice commentary in history replay page
+- Uses Web Speech Synthesis to speak move quality, title, and commentary aloud after each Stockfish analysis
+
+### UI Improvements
+- Improved chess board: legal-move dots, coordinate labels, flipped board for Black player
+- Scrolling chat with auto-scroll to latest message
+- Move list scrolls to active move automatically
+
 ## Important Notes
 - Vite proxy: `/api` → `http://localhost:8080` (incl. `ws: true` for Socket.IO)
 - Profile fields: `nickname` / `avatarColor` / `country` (not `username` / `rating`)

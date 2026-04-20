@@ -1,0 +1,86 @@
+Do NOT rebuild the project from scratch
+Do NOT change existing stable backend logic
+Only extend current system safely
+Keep all current features working
+🎯 Objective
+
+Enhance the existing chess application by adding new advanced features while preserving all current functionality.
+
+⚔️ 1. Online Play Enhancement (Matchmaking)
+When a user clicks "Play Online":
+Send a matchmaking request
+Notify another waiting player with a popup:
+→ "A player wants to play with you"
+→ Buttons: Accept / Decline
+If two users click "Play Online" at the same time:
+→ Automatically match them together in real-time
+Ensure proper socket handling for:
+simultaneous requests
+queue system
+room assignment
+🎮 2. In-Game Features
+Resign Feature
+Add "Resign" button
+When clicked:
+→ End game immediately
+→ Opponent receives popup:
+"Your opponent resigned"
+Draw Feature
+Add "Offer Draw" button
+Opponent can Accept or Decline
+Sync decision in real-time
+🔔 3. Real-Time Events (Sockets)
+
+Ensure existing socket system supports:
+
+move updates
+resign event
+draw request
+draw acceptance/rejection
+player disconnect handling
+🧠 4. Advanced Features (New Additions)
+🎥 Hand Camera Control (Optional AI Feature)
+Allow players to move pieces using hand gestures via camera
+Detect hand movement and convert it into chess moves
+Only implement if backend supports it; otherwise UI-only placeholder
+🎙️ Voice Control
+Allow players to make moves using voice commands:
+Example:
+→ "Move pawn to e4"
+Use speech-to-text to interpret commands
+📊 5. Game History + AI Analysis
+Replay System
+Allow users to review full games move-by-move
+Stockfish Integration
+Analyze games using Stockfish engine
+Show:
+best moves
+mistakes / blunders
+accuracy score
+Voice Commentary (like chess.com)
+AI explains moves using voice:
+"This was a blunder"
+"Best move was knight to f3"
+⚙️ 6. Backend Rules (VERY IMPORTANT)
+Use ONLY existing backend APIs
+If a feature does NOT exist in backend:
+→ implement UI only (no fake API calls)
+Do NOT modify working backend logic unless necessary
+Ensure compatibility with current socket events and DB schema
+🎨 7. UI/UX Improvements
+Keep existing design style
+Add smooth animations for:
+match found
+resign/draw popup
+game state changes
+Ensure mobile responsiveness
+Maintain clean and consistent UI
+🏁 Goal
+
+Enhance the existing chess app into a more advanced platform with:
+
+smarter matchmaking
+richer gameplay interactions
+AI-powered analysis
+optional voice and camera features
+without breaking current functionality.
