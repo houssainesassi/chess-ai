@@ -182,7 +182,7 @@ export default function HistoryReplayPage() {
                     if (index % 2 === 0) result.push([move]);
                     else result[result.length - 1].push(move);
                     return result;
-                  }, []).map((pair, i) => (
+                  }, []).map((pair: any[], i: number) => (
                     <div key={i} className="col-span-2 flex px-2 py-1 rounded">
                       <span className="w-8 text-muted-foreground">{i + 1}.</span>
                       <span 

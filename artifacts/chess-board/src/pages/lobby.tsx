@@ -23,7 +23,7 @@ export default function LobbyPage() {
   const [searchLoading, setSearchLoading] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [showPending, setShowPending] = useState(true);
-  const searchTimeout = useRef<ReturnType<typeof setTimeout>>();
+  const searchTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const fetchData = async () => {
     if (!token) return;
