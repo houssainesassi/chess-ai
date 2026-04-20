@@ -1,0 +1,153 @@
+Enhance the existing chess application with the following UI and feature improvements.
+⚠️ Do NOT rebuild the app. Extend the current system safely and keep all existing functionality working.
+
+---
+
+# 🎯 Board & Layout
+
+* Make the chess board fully responsive and take the maximum available screen space
+* Ensure it adapts to all screen sizes (desktop + mobile)
+* Center the board and keep UI clean and minimal
+* Add a modern game layout inspired by chess.com (clean side panels, minimal distractions)
+
+---
+
+# 🎮 Opponent Info (NEW)
+
+* Display opponent player information clearly during the game:
+  → show opponent name
+  → show avatar/profile picture
+  → show online status (if available)
+* Position it cleanly near the board (top or side panel)
+* Ensure it updates correctly when match starts
+
+---
+
+# 🎮 Play Online (Matchmaking)
+
+* When user clicks "Play Online":
+  → create or join a real-time game
+  → match with another online player automatically
+
+* If two players click at the same time:
+  → instantly match them together
+
+* When match is found:
+  → show opponent name + avatar
+  → add smooth "Match Found" animation or popup
+
+---
+
+# 👥 Play with Friends (WITHOUT LINK)
+
+* Remove link-based invite system
+
+* When user clicks "Play with Friends":
+  → send a real-time request to a selected friend/player
+
+* The other player receives a popup:
+  → "Player X wants to play with you"
+  → Buttons: Accept / Decline
+
+* If accepted:
+  → start game immediately in same room
+
+* If declined:
+  → notify sender gracefully
+
+---
+
+# 💬 Messaging System
+
+* Add a message/chat button in the game UI
+* Design it inspired by chess.com (modern, clean, floating or side panel)
+* When clicked:
+  → open a chat panel with smooth animation
+  → allow real-time messaging between players
+* Keep UI simple and elegant
+
+---
+
+# 🎥 Camera (Hand Detection Feature)
+
+* Make the camera detection fully functional
+* Allow the user to:
+  → open/close the camera
+  → position the camera anywhere on screen (draggable window)
+* Detect hand movement and allow moving chess pieces using hand gestures
+
+## UI Requirements
+
+* Add a camera button with a clean modern design
+* When camera is opened:
+  → show a popup or indicator: "Camera Activated"
+  → display camera feed in a movable mini-window
+* Smooth animations when opening/closing camera
+
+---
+
+# 🎙️ Voice Control
+
+* Add voice control button with a modern UI (same design style as camera button)
+* Allow player to move pieces using voice commands
+* Show a small popup or indicator when voice is active:
+  → "Listening..."
+* Keep UI minimal and visually consistent
+
+---
+
+# 📊 Game Review (Post-Game Analysis)
+
+* Create a game review interface inspired by chess.com
+
+## Features:
+
+* Move-by-move replay
+* Highlight mistakes and best moves
+* Show evaluation bar (advantage white/black)
+* Integrate Stockfish for analysis (if available)
+
+## UI Design:
+
+* Clean layout with:
+  → board on one side
+  → moves list on the other
+  → analysis section (mistakes, best moves)
+* Smooth transitions when switching moves
+
+---
+
+# 🎨 UI/UX Improvements
+
+* Use a modern, clean design inspired by chess.com
+* Keep consistency across:
+  → buttons
+  → popups
+  → animations
+* Add subtle hover effects and transitions
+* Maintain responsive design for all devices
+
+---
+
+# ⚙️ Backend Rules
+
+* Use existing APIs and socket system
+* Do NOT create fake APIs
+* Do NOT break existing backend logic
+* Only extend backend if absolutely necessary
+* Ensure real-time features (matchmaking, invites, chat) work with sockets
+
+---
+
+# 🏁 Goal
+
+Upgrade the current chess app into a professional-level platform similar to chess.com with:
+
+* full-screen responsive board
+* real-time matchmaking
+* friend invite system without links
+* opponent avatar + info display
+* modern chat system
+* camera + voice interaction
+* advanced game review UI
+  while keeping the app stable, scalable, and clean.
