@@ -13,6 +13,8 @@ import MultiplayerGamePage from "@/pages/multiplayer-game";
 import HistoryPage from "@/pages/history";
 import HistoryReplayPage from "@/pages/history-replay";
 import SettingsPage from "@/pages/settings";
+import ProfilePage from "@/pages/profile";
+import { SocketNotificationProvider } from "@/hooks/use-socket-notifications";
 
 const queryClient = new QueryClient();
 
@@ -44,6 +46,7 @@ function Router() {
         <Route path="/history" component={() => <ProtectedRoute component={HistoryPage} />} />
         <Route path="/history/:id" component={() => <ProtectedRoute component={HistoryReplayPage} />} />
         <Route path="/settings" component={() => <ProtectedRoute component={SettingsPage} />} />
+        <Route path="/profile/:userId" component={() => <ProtectedRoute component={ProfilePage} />} />
         <Route component={NotFound} />
       </Switch>
     </Layout>
@@ -56,7 +59,9 @@ function App() {
       <AuthProvider>
         <TooltipProvider>
           <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-            <Router />
+            <SocketNotificationProvider>
+              <Router />
+            </SocketNotificationProvider>
           </WouterRouter>
           <Toaster />
         </TooltipProvider>

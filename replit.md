@@ -30,12 +30,13 @@ A full-stack chess platform with real-time multiplayer, AI analysis, game histor
 
 ## Pages
 - `/` — Login/Register (JWT auth)
-- `/lobby` — Game mode hub (Play Online, Play vs Robot, Friends, Leaderboard)
+- `/lobby` — Game mode hub (Play Online, Play vs Robot, Friends, Leaderboard, Player Search)
 - `/game` — Local AI game with Stockfish analysis
 - `/game/:id` — Real-time multiplayer game via Socket.IO
 - `/history` — Game history with stats (Wins/Losses/Draws/Accuracy)
 - `/history/:id` — Game replay + Stockfish move analysis
-- `/settings` — Account settings, preferences, danger zone
+- `/settings` — Account settings (avatar color picker, country, 2-step delete confirmation)
+- `/profile/:userId` — Public user profile (stats, friend status, challenge button)
 
 ## API Routes (all under `/api`)
 - `POST /api/auth/register` — Register with username/email/password
@@ -49,6 +50,26 @@ A full-stack chess platform with real-time multiplayer, AI analysis, game histor
 - `GET/POST /api/profile` — User profile management
 - `GET /api/my/games` — Current user's completed games
 - `DELETE /api/account` — Delete account
+- `GET /api/profiles` — All player profiles
+- `GET /api/profiles/search?q=` — Search players by nickname
+- `GET /api/profile/:userId` — Public profile for any user
+- `POST /api/friends/request` — Send friend request
+- `POST /api/friends/accept/:requestId` — Accept friend request
+- `POST /api/friends/decline/:requestId` — Decline friend request
+- `POST /api/challenge/:toUserId` — Challenge a user to a game (creates multiplayer game session)
+
+## Frontend Key Files
+- `src/lib/api.ts` — Centralized typed API client (all endpoints, no auto-generated hooks)
+- `src/hooks/use-auth.tsx` — JWT auth context (token in localStorage)
+- `src/hooks/use-socket-notifications.tsx` — Global Socket.IO listener for game invites, friend requests
+- `src/components/layout.tsx` — Sidebar nav with My Profile link
+
+## Important Notes
+- Vite proxy: `/api` → `http://localhost:8080` (incl. `ws: true` for Socket.IO)
+- Profile fields: `nickname` / `avatarColor` / `country` (not `username` / `rating`)
+- Socket events emitted: `joinGame`, `leaveGame`, `registerUser`, `sendMessage`
+- Socket events received: `roomUpdate`, `chatMessage`, `gameInvite`, `friendRequest`, `friendAccepted`
+- Winner field: `white`/`black`/`draw` — compare against `whitePlayerId`/`blackPlayerId`
 
 ## Environment Variables Required
 - `DATABASE_URL` — PostgreSQL connection string (auto-set by Replit DB)

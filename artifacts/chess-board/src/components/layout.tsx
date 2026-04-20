@@ -13,6 +13,7 @@ export function Layout({ children }: { children: ReactNode }) {
   const navItems = [
     { href: "/lobby", label: "Play", icon: Swords },
     { href: "/history", label: "History", icon: History },
+    { href: `/profile/${user?.id}`, label: "My Profile", icon: Users },
     { href: "/settings", label: "Settings", icon: Settings },
   ];
 
