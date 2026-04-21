@@ -99,20 +99,20 @@ function ChessBoard({
               const pk = square ? (square.color === "w" ? square.type.toUpperCase() : square.type) : null;
               return (
                 <div key={j} onClick={() => handleClick(sq)}
-                  className={`flex-1 flex items-center justify-center cursor-pointer relative select-none transition-colors
-                    ${light ? "bg-[#f0d9b5]" : "bg-[#b58863]"}
-                    ${sel ? "!bg-yellow-400/80" : ""}
-                    ${lm && !sel ? "!bg-yellow-300/40" : ""}
-                    ${tgt && !square ? "after:absolute after:inset-[30%] after:rounded-full after:bg-black/20" : ""}
-                    ${tgt && square ? "ring-2 ring-inset ring-yellow-400" : ""}`}>
+                  className={`flex-1 flex items-center justify-center cursor-pointer relative select-none transition-all duration-150
+                    ${light ? "bg-[#eeeed2]" : "bg-[#769656]"}
+                    ${sel ? "!bg-[#f6f669]/70" : ""}
+                    ${lm && !sel ? (light ? "!bg-[#cdd16f]/70" : "!bg-[#aaa23a]/80") : ""}
+                    ${tgt && !square ? "after:absolute after:inset-[32%] after:rounded-full after:bg-black/18 after:pointer-events-none" : ""}
+                    ${tgt && square ? "ring-[3px] ring-inset ring-black/25" : ""}`}>
                   {square && (
                     <span className={`text-[clamp(1.2rem,4vw,3.5rem)] leading-none drop-shadow-md select-none
                       ${square.color === "w" ? "text-white [text-shadow:0_1px_2px_rgba(0,0,0,0.9)]" : "text-[#1a1a1a] [text-shadow:0_1px_0_rgba(255,255,255,0.4)]"}`}>
                       {pk ? SYM[pk] : ""}
                     </span>
                   )}
-                  {j === 0 && <span className={`absolute top-0.5 left-0.5 text-[9px] font-bold leading-none ${light ? "text-[#b58863]" : "text-[#f0d9b5]"}`}>{rank}</span>}
-                  {i === 7 && <span className={`absolute bottom-0.5 right-0.5 text-[9px] font-bold leading-none ${light ? "text-[#b58863]" : "text-[#f0d9b5]"}`}>{file}</span>}
+                  {j === 0 && <span className={`absolute top-0.5 left-0.5 text-[9px] font-bold leading-none ${light ? "text-[#769656]" : "text-[#eeeed2]"}`}>{rank}</span>}
+                  {i === 7 && <span className={`absolute bottom-0.5 right-0.5 text-[9px] font-bold leading-none ${light ? "text-[#769656]" : "text-[#eeeed2]"}`}>{file}</span>}
                 </div>
               );
             })}

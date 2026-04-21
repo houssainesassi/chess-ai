@@ -57,10 +57,16 @@ export const api = {
     req<{ success: boolean }>(`/friends/accept/${requestId}`, { method: "POST", token }),
   declineFriendRequest: (token: string, requestId: string) =>
     req<{ success: boolean }>(`/friends/decline/${requestId}`, { method: "POST", token }),
-  challengeFriend: (token: string, friendUserId: string) =>
-    req<{ success: boolean; gameId: string }>(`/challenge/${friendUserId}`, {
+  challengeFriend: (token: string, toUserId: string) =>
+    req<{ success: boolean; gameId: string }>(`/challenge/${toUserId}`, {
       method: "POST",
       token,
+    }),
+  inviteFriend: (token: string, toUserId: string) =>
+    req<{ success: boolean; gameId: string }>("/friends/invite", {
+      method: "POST",
+      token,
+      body: JSON.stringify({ toUserId }),
     }),
 
   // Games

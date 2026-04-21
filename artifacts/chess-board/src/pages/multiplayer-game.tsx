@@ -91,22 +91,22 @@ function MultiplayerBoard({
               const pk = square ? (square.color === "w" ? square.type.toUpperCase() : square.type) : null;
               return (
                 <div key={j} onClick={() => handleClick(sq)}
-                  className={`flex-1 flex items-center justify-center cursor-pointer relative select-none transition-colors
-                    ${light ? "bg-[#f0d9b5]" : "bg-[#b58863]"}
-                    ${sel ? "!bg-yellow-400/80" : ""}
-                    ${lm && !sel ? "!bg-yellow-300/40" : ""}
-                    ${tgt && !square ? "after:absolute after:inset-[30%] after:rounded-full after:bg-black/20" : ""}
-                    ${tgt && square ? "ring-2 ring-inset ring-yellow-400" : ""}`}>
+                  className={`flex-1 flex items-center justify-center cursor-pointer relative select-none transition-all duration-150
+                    ${light ? "bg-[#eeeed2]" : "bg-[#769656]"}
+                    ${sel ? "!bg-[#f6f669]/70" : ""}
+                    ${lm && !sel ? (light ? "!bg-[#cdd16f]/70" : "!bg-[#aaa23a]/80") : ""}
+                    ${tgt && !square ? "after:absolute after:inset-[32%] after:rounded-full after:bg-black/18 after:pointer-events-none" : ""}
+                    ${tgt && square ? "ring-[3px] ring-inset ring-black/25" : ""}`}>
                   {square && (
                     <span className={`text-[clamp(1.2rem,4vw,3.5rem)] leading-none drop-shadow-md select-none
                       ${square.color === "w" ? "text-white [text-shadow:0_1px_2px_rgba(0,0,0,0.9)]" : "text-[#1a1a1a] [text-shadow:0_1px_0_rgba(255,255,255,0.4)]"}`}>
                       {pk ? SYM[pk] : ""}
                     </span>
                   )}
-                  {!flipped && j === 0 && <span className={`absolute top-0.5 left-0.5 text-[9px] font-bold leading-none ${light ? "text-[#b58863]" : "text-[#f0d9b5]"}`}>{8-i}</span>}
-                  {!flipped && i === 7 && <span className={`absolute bottom-0.5 right-0.5 text-[9px] font-bold leading-none ${light ? "text-[#b58863]" : "text-[#f0d9b5]"}`}>{String.fromCharCode(97+j)}</span>}
-                  {flipped && j === 7 && <span className={`absolute top-0.5 right-0.5 text-[9px] font-bold leading-none ${light ? "text-[#b58863]" : "text-[#f0d9b5]"}`}>{i+1}</span>}
-                  {flipped && i === 0 && <span className={`absolute bottom-0.5 left-0.5 text-[9px] font-bold leading-none ${light ? "text-[#b58863]" : "text-[#f0d9b5]"}`}>{String.fromCharCode(104-j)}</span>}
+                  {!flipped && j === 0 && <span className={`absolute top-0.5 left-0.5 text-[9px] font-bold leading-none ${light ? "text-[#769656]" : "text-[#eeeed2]"}`}>{8-i}</span>}
+                  {!flipped && i === 7 && <span className={`absolute bottom-0.5 right-0.5 text-[9px] font-bold leading-none ${light ? "text-[#769656]" : "text-[#eeeed2]"}`}>{String.fromCharCode(97+j)}</span>}
+                  {flipped && j === 7 && <span className={`absolute top-0.5 right-0.5 text-[9px] font-bold leading-none ${light ? "text-[#769656]" : "text-[#eeeed2]"}`}>{i+1}</span>}
+                  {flipped && i === 0 && <span className={`absolute bottom-0.5 left-0.5 text-[9px] font-bold leading-none ${light ? "text-[#769656]" : "text-[#eeeed2]"}`}>{String.fromCharCode(104-j)}</span>}
                 </div>
               );
             })}
@@ -241,6 +241,7 @@ export default function MultiplayerGamePage() {
   const [, setLocation] = useLocation();
 
   const [game, setGame] = useState<any>(null);
+  const [opponentProfile, setOpponentProfile] = useState<{ nickname: string; avatarColor: string; country?: string } | null>(null);
   const [socket, setSocket] = useState<Socket | null>(null);
   const [chatMsg, setChatMsg] = useState("");
   const [messages, setMessages] = useState<{ sender: string; text: string }[]>([]);
@@ -291,7 +292,20 @@ export default function MultiplayerGamePage() {
       try {
         const res = await fetch(`/api/games/${id}`, { headers: { Authorization: `Bearer ${token}` } });
         if (!res.ok) throw new Error();
-        setGame(await res.json());
+        const gameData = await res.json();
+        setGame(gameData);
+        // Fetch opponent profile
+        const opponentId = gameData.whitePlayerId === user?.id ? gameData.blackPlayerId : gameData.whitePlayerId;
+        if (opponentId) {
+          try {
+            const pr = await fetch(`/api/profiles?userIds=${opponentId}`);
+            if (pr.ok) {
+              const pd = await pr.json();
+              const prof = pd.profiles?.[0];
+              if (prof) setOpponentProfile({ nickname: prof.nickname, avatarColor: prof.avatarColor || "#3b82f6", country: prof.country });
+            }
+          } catch (_) {}
+        }
       } catch { toast({ title: "Failed to load game", variant: "destructive" }); setLocation("/lobby"); }
     };
     loadGame();
@@ -364,11 +378,16 @@ export default function MultiplayerGamePage() {
   if (game.status === "waiting") {
     return (
       <div className="flex-1 flex flex-col items-center justify-center gap-6 p-6">
-        <img src="/icon.png" alt="" className="w-16 h-16 rounded-2xl object-cover animate-pulse" />
+        <div className="relative w-20 h-20 flex items-center justify-center">
+          <div className="absolute inset-0 rounded-full border-4 border-primary/20 animate-ping" />
+          <div className="absolute inset-2 rounded-full border-4 border-primary/40 animate-ping" style={{ animationDelay: "200ms" }} />
+          <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center relative z-10">
+            <Flag className="w-6 h-6 text-primary" />
+          </div>
+        </div>
         <div className="text-center space-y-2">
           <h2 className="text-2xl font-bold">Waiting for Opponent</h2>
-          <p className="text-muted-foreground text-sm">Share the link or wait for someone to join.</p>
-          <p className="text-xs font-mono bg-muted px-3 py-1 rounded break-all">{window.location.href}</p>
+          <p className="text-muted-foreground text-sm">Your challenge has been sent. The game will start once they accept.</p>
         </div>
         <Button variant="outline" onClick={() => setLocation("/lobby")}><ArrowLeft className="w-4 h-4 mr-2" /> Back to Lobby</Button>
       </div>
@@ -430,10 +449,19 @@ export default function MultiplayerGamePage() {
         <button onClick={() => setLocation("/lobby")} className="text-muted-foreground hover:text-foreground transition-colors mr-1">
           <ArrowLeft className="w-5 h-5" />
         </button>
-        <div className="w-9 h-9 bg-secondary rounded-full flex items-center justify-center font-bold text-sm shrink-0">O</div>
+        <div
+          className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm text-white shrink-0"
+          style={{ background: opponentProfile?.avatarColor || "#64748b" }}
+        >
+          {(opponentProfile?.nickname || opponentLabel).charAt(0).toUpperCase()}
+        </div>
         <div className="flex-1 min-w-0">
-          <div className="font-bold text-sm truncate">Opponent ({opponentLabel})</div>
-          {!isMyTurn && !gameOver && <div className="text-xs text-muted-foreground">Thinking…</div>}
+          <div className="font-bold text-sm truncate">
+            {opponentProfile?.nickname || `Opponent`}
+            <span className="font-normal text-muted-foreground ml-1">({opponentLabel})</span>
+          </div>
+          {opponentProfile?.country && <div className="text-xs text-muted-foreground">{opponentProfile.country}</div>}
+          {!isMyTurn && !gameOver && !opponentProfile?.country && <div className="text-xs text-muted-foreground">Thinking…</div>}
         </div>
         <div className="text-sm shrink-0">{myColor === "w" ? (game.capturedPieces?.black || []).join("") : (game.capturedPieces?.white || []).join("")}</div>
       </div>

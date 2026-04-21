@@ -1,7 +1,6 @@
 import { Router } from "express";
 import { sql } from "drizzle-orm";
-import { db, userProfilesTable } from "@workspace/db";
-import { inArray } from "drizzle-orm";
+import { db, usersTable } from "@workspace/db";
 import { logger } from "../lib/logger";
 
 const router = Router();
@@ -42,25 +41,21 @@ router.get("/leaderboard", async (_req, res) => {
     }
 
     const userIds = rows.rows.map((r: any) => r.user_id as string);
-    const profiles = await db
-      .select()
-      .from(userProfilesTable)
-      .where(inArray(userProfilesTable.userId, userIds));
-
-    const profileMap = Object.fromEntries(profiles.map((p) => [p.userId, p]));
+    const allUsers = await db.select().from(usersTable);
+    const userMap = Object.fromEntries(allUsers.map((u) => [u.id, u]));
 
     const leaderboard = rows.rows.map((r: any) => {
-      const profile = profileMap[r.user_id];
+      const user = userMap[r.user_id];
       const wins = Number(r.wins);
       const losses = Number(r.losses);
       const draws = Number(r.draws);
       const gamesPlayed = Number(r.games_played);
       return {
         userId: r.user_id as string,
-        nickname: profile?.nickname ?? r.user_id.slice(0, 8) + "…",
-        country: profile?.country ?? null,
-        avatarUrl: profile?.avatarUrl ?? null,
-        avatarColor: profile?.avatarColor ?? "#555",
+        nickname: user?.nickname || user?.username || r.user_id.slice(0, 8) + "…",
+        country: user?.country ?? null,
+        avatarUrl: user?.avatarUrl ?? null,
+        avatarColor: user?.avatarColor ?? "#3b82f6",
         wins,
         losses,
         draws,

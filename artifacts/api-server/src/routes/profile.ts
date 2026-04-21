@@ -1,14 +1,30 @@
 import { Router } from "express";
-import { eq, inArray } from "drizzle-orm";
-import { db, userProfilesTable, usersTable } from "@workspace/db";
+import { eq, inArray, ilike } from "drizzle-orm";
+import { db, usersTable } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
 import { logger } from "../lib/logger";
 
 const router = Router();
 
+const profileSelect = {
+  userId: usersTable.id,
+  nickname: usersTable.nickname,
+  country: usersTable.country,
+  avatarColor: usersTable.avatarColor,
+  avatarUrl: usersTable.avatarUrl,
+  username: usersTable.username,
+};
+
 router.get("/players", requireAuth, async (req, res) => {
   try {
-    const profiles = await db.select().from(userProfilesTable);
+    const users = await db.select(profileSelect).from(usersTable);
+    const profiles = users.map((u) => ({
+      userId: u.userId,
+      nickname: u.nickname || u.username,
+      country: u.country || "Other",
+      avatarColor: u.avatarColor || "#3b82f6",
+      avatarUrl: u.avatarUrl ?? null,
+    }));
     res.json({ profiles });
   } catch (err) {
     logger.error({ err }, "Failed to list players");
@@ -28,10 +44,15 @@ router.get("/profiles", async (req, res) => {
     return;
   }
   try {
-    const profiles = await db
-      .select()
-      .from(userProfilesTable)
-      .where(inArray(userProfilesTable.userId, userIds));
+    const users = await db.select(profileSelect).from(usersTable);
+    const matched = users.filter((u) => userIds.includes(u.userId));
+    const profiles = matched.map((u) => ({
+      userId: u.userId,
+      nickname: u.nickname || u.username,
+      country: u.country || "Other",
+      avatarColor: u.avatarColor || "#3b82f6",
+      avatarUrl: u.avatarUrl ?? null,
+    }));
     res.json({ profiles });
   } catch (err) {
     logger.error({ err }, "Failed to get profiles");
@@ -41,19 +62,19 @@ router.get("/profiles", async (req, res) => {
 
 router.get("/profile", requireAuth, async (req, res) => {
   const userId = (req as any).userId as string;
-
   try {
-    const [profile] = await db
-      .select()
-      .from(userProfilesTable)
-      .where(eq(userProfilesTable.userId, userId));
-
-    if (!profile) {
-      res.status(404).json({ error: "not_found", message: "Profile not found" });
+    const [user] = await db.select(profileSelect).from(usersTable).where(eq(usersTable.id, userId));
+    if (!user) {
+      res.status(404).json({ error: "not_found", message: "User not found" });
       return;
     }
-
-    res.json(profile);
+    res.json({
+      userId: user.userId,
+      nickname: user.nickname || user.username,
+      country: user.country || "Other",
+      avatarColor: user.avatarColor || "#3b82f6",
+      avatarUrl: user.avatarUrl ?? null,
+    });
   } catch (err) {
     logger.error({ err }, "Failed to get profile");
     res.status(500).json({ error: "internal_error", message: "Failed to get profile" });
@@ -62,46 +83,33 @@ router.get("/profile", requireAuth, async (req, res) => {
 
 router.post("/profile", requireAuth, async (req, res) => {
   const userId = (req as any).userId as string;
-  const userEmail = (req as any).userEmail as string | undefined;
   const { nickname, country, avatarUrl, avatarColor } = req.body;
 
   if (!nickname || typeof nickname !== "string" || nickname.trim().length === 0) {
     res.status(400).json({ error: "validation_error", message: "nickname is required" });
     return;
   }
-  if (!country || typeof country !== "string" || country.trim().length === 0) {
-    res.status(400).json({ error: "validation_error", message: "country is required" });
-    return;
-  }
-  if (!avatarColor || typeof avatarColor !== "string") {
-    res.status(400).json({ error: "validation_error", message: "avatarColor is required" });
-    return;
-  }
 
   try {
-    const [profile] = await db
-      .insert(userProfilesTable)
-      .values({
-        userId,
+    const [updated] = await db
+      .update(usersTable)
+      .set({
         nickname: nickname.trim(),
-        country: country.trim(),
+        country: (country || "Other").trim(),
+        avatarColor: avatarColor || "#3b82f6",
         avatarUrl: avatarUrl ?? null,
-        avatarColor,
-        email: userEmail ?? null,
+        updatedAt: new Date(),
       })
-      .onConflictDoUpdate({
-        target: userProfilesTable.userId,
-        set: {
-          nickname: nickname.trim(),
-          country: country.trim(),
-          avatarUrl: avatarUrl ?? null,
-          avatarColor,
-          updatedAt: new Date(),
-        },
-      })
+      .where(eq(usersTable.id, userId))
       .returning();
 
-    res.json(profile);
+    res.json({
+      userId: updated.id,
+      nickname: updated.nickname || updated.username,
+      country: updated.country || "Other",
+      avatarColor: updated.avatarColor || "#3b82f6",
+      avatarUrl: updated.avatarUrl ?? null,
+    });
   } catch (err) {
     logger.error({ err }, "Failed to save profile");
     res.status(500).json({ error: "internal_error", message: "Failed to save profile" });
@@ -110,9 +118,7 @@ router.post("/profile", requireAuth, async (req, res) => {
 
 router.delete("/account", requireAuth, async (req, res) => {
   const userId = (req as any).userId as string;
-
   try {
-    await db.delete(userProfilesTable).where(eq(userProfilesTable.userId, userId));
     await db.delete(usersTable).where(eq(usersTable.id, userId));
     logger.info({ userId }, "Account deleted");
     res.json({ success: true });

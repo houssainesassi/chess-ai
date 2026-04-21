@@ -1,12 +1,22 @@
 import { Router } from "express";
-import { eq, and, or } from "drizzle-orm";
-import { db, friendRequestsTable, userProfilesTable, chessGamesTable } from "@workspace/db";
+import { eq, and, or, inArray } from "drizzle-orm";
+import { db, friendRequestsTable, usersTable, chessGamesTable } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
 import { getSocketServer } from "../lib/socket-server";
 import { gameRoomManager } from "../lib/game-room-manager";
 import { logger } from "../lib/logger";
 
 const router = Router();
+
+function formatProfile(u: any) {
+  return {
+    userId: u.id,
+    nickname: u.nickname || u.username,
+    country: u.country || "Other",
+    avatarColor: u.avatarColor || "#3b82f6",
+    avatarUrl: u.avatarUrl ?? null,
+  };
+}
 
 router.get("/friends", requireAuth, async (req, res) => {
   const userId = (req as any).userId as string;
@@ -22,17 +32,13 @@ router.get("/friends", requireAuth, async (req, res) => {
         ),
       );
 
-    const friendUserIds = new Set<string>();
     const pendingIn: typeof requests = [];
     const pendingOut: typeof requests = [];
     const friends: typeof requests = [];
 
     for (const r of requests) {
-      if (r.status === "accepted") {
-        const otherId = r.fromUserId === userId ? r.toUserId : r.fromUserId;
-        friendUserIds.add(otherId);
-        friends.push(r);
-      } else if (r.status === "pending") {
+      if (r.status === "accepted") friends.push(r);
+      else if (r.status === "pending") {
         if (r.toUserId === userId) pendingIn.push(r);
         else pendingOut.push(r);
       }
@@ -46,40 +52,48 @@ router.get("/friends", requireAuth, async (req, res) => {
       ]),
     ];
 
-    const profiles = allIds.length
-      ? await db.select().from(userProfilesTable).where(
-          or(...allIds.map((id) => eq(userProfilesTable.userId, id))),
-        )
+    const userRows = allIds.length
+      ? await db.select().from(usersTable).then((rows) => rows.filter((u) => allIds.includes(u.id)))
       : [];
 
-    const profileMap = Object.fromEntries(profiles.map((p) => [p.userId, p]));
+    const profileMap = Object.fromEntries(userRows.map((u) => [u.id, u]));
 
     const waitingGame = await db
-      .select({ id: chessGamesTable.id, whitePlayerId: chessGamesTable.whitePlayerId })
+      .select({ id: chessGamesTable.id })
       .from(chessGamesTable)
       .where(and(eq(chessGamesTable.status, "waiting"), eq(chessGamesTable.whitePlayerId, userId)));
 
     const openGameId = waitingGame[0]?.id ?? null;
 
     res.json({
-      friends: friends.map((r) => ({
-        requestId: r.id,
-        userId: r.fromUserId === userId ? r.toUserId : r.fromUserId,
-        profile: profileMap[r.fromUserId === userId ? r.toUserId : r.fromUserId] ?? null,
-        since: r.updatedAt,
-      })),
-      pendingIn: pendingIn.map((r) => ({
-        requestId: r.id,
-        userId: r.fromUserId,
-        profile: profileMap[r.fromUserId] ?? null,
-        createdAt: r.createdAt,
-      })),
-      pendingOut: pendingOut.map((r) => ({
-        requestId: r.id,
-        userId: r.toUserId,
-        profile: profileMap[r.toUserId] ?? null,
-        createdAt: r.createdAt,
-      })),
+      friends: friends.map((r) => {
+        const otherId = r.fromUserId === userId ? r.toUserId : r.fromUserId;
+        const u = profileMap[otherId];
+        return {
+          requestId: r.id,
+          userId: otherId,
+          profile: u ? formatProfile(u) : null,
+          since: r.updatedAt,
+        };
+      }),
+      pendingIn: pendingIn.map((r) => {
+        const u = profileMap[r.fromUserId];
+        return {
+          requestId: r.id,
+          userId: r.fromUserId,
+          profile: u ? formatProfile(u) : null,
+          createdAt: r.createdAt,
+        };
+      }),
+      pendingOut: pendingOut.map((r) => {
+        const u = profileMap[r.toUserId];
+        return {
+          requestId: r.id,
+          userId: r.toUserId,
+          profile: u ? formatProfile(u) : null,
+          createdAt: r.createdAt,
+        };
+      }),
       openGameId,
     });
   } catch (err) {
@@ -96,7 +110,6 @@ router.post("/friends/request", requireAuth, async (req, res) => {
     res.status(400).json({ error: "validation_error", message: "toUserId is required" });
     return;
   }
-
   if (toUserId === userId) {
     res.status(400).json({ error: "validation_error", message: "Cannot friend yourself" });
     return;
@@ -139,7 +152,6 @@ router.post("/friends/request", requireAuth, async (req, res) => {
       .returning();
 
     notifyFriendRequest(toUserId, created);
-
     res.json(created);
   } catch (err) {
     logger.error({ err }, "Failed to send friend request");
@@ -149,7 +161,7 @@ router.post("/friends/request", requireAuth, async (req, res) => {
 
 router.post("/friends/accept/:requestId", requireAuth, async (req, res) => {
   const userId = (req as any).userId as string;
-  const { requestId } = req.params as { requestId: string };
+  const { requestId } = req.params;
 
   try {
     const [request] = await db
@@ -182,7 +194,7 @@ router.post("/friends/accept/:requestId", requireAuth, async (req, res) => {
 
 router.post("/friends/decline/:requestId", requireAuth, async (req, res) => {
   const userId = (req as any).userId as string;
-  const { requestId } = req.params as { requestId: string };
+  const { requestId } = req.params;
 
   try {
     const [request] = await db
@@ -209,7 +221,7 @@ router.post("/friends/decline/:requestId", requireAuth, async (req, res) => {
 
 router.delete("/friends/:friendUserId", requireAuth, async (req, res) => {
   const userId = (req as any).userId as string;
-  const { friendUserId } = req.params as { friendUserId: string };
+  const { friendUserId } = req.params;
 
   try {
     await db
@@ -220,7 +232,6 @@ router.delete("/friends/:friendUserId", requireAuth, async (req, res) => {
           and(eq(friendRequestsTable.fromUserId, friendUserId), eq(friendRequestsTable.toUserId, userId)),
         ),
       );
-
     res.json({ success: true });
   } catch (err) {
     logger.error({ err }, "Failed to remove friend");
@@ -238,7 +249,7 @@ router.post("/friends/invite", requireAuth, async (req, res) => {
   }
 
   try {
-    const [request] = await db
+    const [friendship] = await db
       .select()
       .from(friendRequestsTable)
       .where(
@@ -251,7 +262,7 @@ router.post("/friends/invite", requireAuth, async (req, res) => {
         ),
       );
 
-    if (!request) {
+    if (!friendship) {
       res.status(403).json({ error: "not_friends", message: "You are not friends with this player" });
       return;
     }
@@ -267,19 +278,15 @@ router.post("/friends/invite", requireAuth, async (req, res) => {
 
     gameRoomManager.getOrCreate(game.id);
 
-    const fromProfile = await db
-      .select()
-      .from(userProfilesTable)
-      .where(eq(userProfilesTable.userId, userId))
-      .then((r) => r[0]);
+    const [fromUser] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
 
     getSocketServer()?.to(`user:${toUserId}`).emit("gameInvite", {
       gameId: game.id,
       fromUserId: userId,
-      fromNickname: fromProfile?.nickname ?? "Someone",
-      fromAvatarColor: fromProfile?.avatarColor ?? "#555",
-      fromAvatarUrl: fromProfile?.avatarUrl ?? null,
-      fromCountry: fromProfile?.country ?? null,
+      fromNickname: fromUser?.nickname || fromUser?.username || "Someone",
+      fromAvatarColor: fromUser?.avatarColor || "#3b82f6",
+      fromAvatarUrl: fromUser?.avatarUrl ?? null,
+      fromCountry: fromUser?.country ?? null,
     });
 
     res.json({ success: true, gameId: game.id });
@@ -314,18 +321,13 @@ router.post("/friends/invite/decline", requireAuth, async (req, res) => {
       return;
     }
 
-    const declinedByProfile = await db
-      .select()
-      .from(userProfilesTable)
-      .where(eq(userProfilesTable.userId, userId))
-      .then((r) => r[0]);
-
+    const [decliner] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
     await db.delete(chessGamesTable).where(eq(chessGamesTable.id, gameId));
 
     getSocketServer()?.to(`user:${game.whitePlayerId}`).emit("gameInviteDeclined", {
       gameId,
       byUserId: userId,
-      byNickname: declinedByProfile?.nickname ?? "Your friend",
+      byNickname: decliner?.nickname || decliner?.username || "Your opponent",
     });
 
     res.json({ success: true });
@@ -337,7 +339,7 @@ router.post("/friends/invite/decline", requireAuth, async (req, res) => {
 
 router.post("/challenge/:toUserId", requireAuth, async (req, res) => {
   const userId = (req as any).userId as string;
-  const { toUserId } = req.params as { toUserId: string };
+  const { toUserId } = req.params;
 
   if (!toUserId || toUserId === userId) {
     res.status(400).json({ error: "validation_error", message: "Invalid target user" });
@@ -345,13 +347,8 @@ router.post("/challenge/:toUserId", requireAuth, async (req, res) => {
   }
 
   try {
-    const targetProfile = await db
-      .select()
-      .from(userProfilesTable)
-      .where(eq(userProfilesTable.userId, toUserId))
-      .then((r) => r[0]);
-
-    if (!targetProfile) {
+    const [targetUser] = await db.select().from(usersTable).where(eq(usersTable.id, toUserId));
+    if (!targetUser) {
       res.status(404).json({ error: "not_found", message: "Player not found" });
       return;
     }
@@ -367,19 +364,15 @@ router.post("/challenge/:toUserId", requireAuth, async (req, res) => {
 
     gameRoomManager.getOrCreate(game.id);
 
-    const fromProfile = await db
-      .select()
-      .from(userProfilesTable)
-      .where(eq(userProfilesTable.userId, userId))
-      .then((r) => r[0]);
+    const [fromUser] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
 
     getSocketServer()?.to(`user:${toUserId}`).emit("gameInvite", {
       gameId: game.id,
       fromUserId: userId,
-      fromNickname: fromProfile?.nickname ?? "Someone",
-      fromAvatarColor: fromProfile?.avatarColor ?? "#555",
-      fromAvatarUrl: fromProfile?.avatarUrl ?? null,
-      fromCountry: fromProfile?.country ?? null,
+      fromNickname: fromUser?.nickname || fromUser?.username || "Someone",
+      fromAvatarColor: fromUser?.avatarColor || "#3b82f6",
+      fromAvatarUrl: fromUser?.avatarUrl ?? null,
+      fromCountry: fromUser?.country ?? null,
     });
 
     res.json({ success: true, gameId: game.id });
@@ -399,14 +392,23 @@ router.get("/profiles/search", requireAuth, async (req, res) => {
   }
 
   try {
-    const { ilike } = await import("drizzle-orm");
-    const profiles = await db
+    const users = await db
       .select()
-      .from(userProfilesTable)
-      .where(ilike(userProfilesTable.nickname, `%${q}%`))
+      .from(usersTable)
+      .where(ilike(usersTable.nickname, `%${q}%`))
       .limit(10);
 
-    res.json({ profiles: profiles.filter((p) => p.userId !== userId) });
+    const profiles = users
+      .filter((u) => u.id !== userId)
+      .map((u) => ({
+        userId: u.id,
+        nickname: u.nickname || u.username,
+        country: u.country || "Other",
+        avatarColor: u.avatarColor || "#3b82f6",
+        avatarUrl: u.avatarUrl ?? null,
+      }));
+
+    res.json({ profiles });
   } catch (err) {
     logger.error({ err }, "Failed to search profiles");
     res.status(500).json({ error: "internal_error", message: "Failed to search profiles" });
@@ -414,7 +416,10 @@ router.get("/profiles/search", requireAuth, async (req, res) => {
 });
 
 function notifyFriendRequest(toUserId: string, request: { id: string; fromUserId: string }) {
-  getSocketServer()?.to(`user:${toUserId}`).emit("friendRequest", { requestId: request.id, fromUserId: request.fromUserId });
+  getSocketServer()?.to(`user:${toUserId}`).emit("friendRequest", {
+    requestId: request.id,
+    fromUserId: request.fromUserId,
+  });
 }
 
 export default router;

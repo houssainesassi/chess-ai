@@ -3,7 +3,7 @@ import { Server as SocketIOServer } from "socket.io";
 import { logger } from "./logger";
 import { chessEngine } from "./chess-engine";
 import type { GameState } from "./chess-engine";
-import { db, chatMessagesTable, chessGamesTable } from "@workspace/db";
+import { db, chatMessagesTable, chessGamesTable, usersTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import { gameRoomManager } from "./game-room-manager";
 
@@ -50,10 +50,8 @@ export function initSocketServer(httpServer: HttpServer): SocketIOServer {
       if (!userId) return;
       logger.info({ socketId: socket.id, userId }, "Player joining matchmaking queue");
 
-      // Remove stale entry for this user
       matchmakingQueue.delete(userId);
 
-      // Find any other waiting player
       const waiting = [...matchmakingQueue.entries()].find(([uid]) => uid !== userId);
 
       if (waiting) {
@@ -61,7 +59,6 @@ export function initSocketServer(httpServer: HttpServer): SocketIOServer {
         matchmakingQueue.delete(opponentId);
 
         try {
-          // Randomly assign colours
           const [whiteId, blackId] =
             Math.random() < 0.5 ? [opponentId, userId] : [userId, opponentId];
 
@@ -78,8 +75,41 @@ export function initSocketServer(httpServer: HttpServer): SocketIOServer {
           gameRoomManager.getOrCreate(game.id);
           logger.info({ gameId: game.id, whiteId, blackId }, "Match found");
 
-          io?.to(`user:${opponentId}`).emit("matchFound", { gameId: game.id });
-          io?.to(`user:${userId}`).emit("matchFound", { gameId: game.id });
+          // Fetch both players' profiles
+          const allUsers = await db.select().from(usersTable);
+          const userMap = Object.fromEntries(allUsers.map((u) => [u.id, u]));
+
+          const newPlayer = userMap[userId];
+          const waitingPlayer = userMap[opponentId];
+
+          const newPlayerProfile = {
+            nickname: newPlayer?.nickname || newPlayer?.username || "Opponent",
+            avatarColor: newPlayer?.avatarColor || "#3b82f6",
+            country: newPlayer?.country || null,
+          };
+          const waitingPlayerProfile = {
+            nickname: waitingPlayer?.nickname || waitingPlayer?.username || "Opponent",
+            avatarColor: waitingPlayer?.avatarColor || "#3b82f6",
+            country: waitingPlayer?.country || null,
+          };
+
+          // Tell waiting player: opponent is the new player
+          io?.to(`user:${opponentId}`).emit("matchFound", {
+            gameId: game.id,
+            opponentId: userId,
+            opponentNickname: newPlayerProfile.nickname,
+            opponentAvatarColor: newPlayerProfile.avatarColor,
+            opponentCountry: newPlayerProfile.country,
+          });
+
+          // Tell new player: opponent is the waiting player
+          io?.to(`user:${userId}`).emit("matchFound", {
+            gameId: game.id,
+            opponentId: opponentId,
+            opponentNickname: waitingPlayerProfile.nickname,
+            opponentAvatarColor: waitingPlayerProfile.avatarColor,
+            opponentCountry: waitingPlayerProfile.country,
+          });
         } catch (err) {
           logger.error({ err }, "Failed to create matched game");
           socket.emit("matchmakingError", { message: "Failed to create game" });
@@ -167,31 +197,27 @@ export function initSocketServer(httpServer: HttpServer): SocketIOServer {
       logger.info({ gameId, userId }, "Draw offered");
     });
 
-    socket.on(
-      "acceptDraw",
-      async ({ gameId }: { gameId: string }) => {
-        if (!gameId) return;
+    socket.on("acceptDraw", async ({ gameId }: { gameId: string }) => {
+      if (!gameId) return;
+      try {
+        const [game] = await db
+          .select()
+          .from(chessGamesTable)
+          .where(eq(chessGamesTable.id, gameId));
 
-        try {
-          const [game] = await db
-            .select()
-            .from(chessGamesTable)
-            .where(eq(chessGamesTable.id, gameId));
+        if (!game || game.status !== "active") return;
 
-          if (!game || game.status !== "active") return;
+        await db
+          .update(chessGamesTable)
+          .set({ status: "completed", winner: "draw", updatedAt: new Date() })
+          .where(and(eq(chessGamesTable.id, gameId), eq(chessGamesTable.status, "active")));
 
-          await db
-            .update(chessGamesTable)
-            .set({ status: "completed", winner: "draw", updatedAt: new Date() })
-            .where(and(eq(chessGamesTable.id, gameId), eq(chessGamesTable.status, "active")));
-
-          io?.to(`game:${gameId}`).emit("drawAccepted", {});
-          logger.info({ gameId }, "Draw accepted");
-        } catch (err) {
-          logger.error({ err }, "Failed to process draw acceptance");
-        }
+        io?.to(`game:${gameId}`).emit("drawAccepted", {});
+        logger.info({ gameId }, "Draw accepted");
+      } catch (err) {
+        logger.error({ err }, "Failed to process draw acceptance");
       }
-    );
+    });
 
     socket.on("declineDraw", ({ gameId }: { gameId: string }) => {
       if (!gameId) return;
@@ -200,7 +226,6 @@ export function initSocketServer(httpServer: HttpServer): SocketIOServer {
 
     // ── Disconnect ───────────────────────────────────────────────────
     socket.on("disconnect", () => {
-      // Remove from matchmaking queue if still there
       for (const [userId, sid] of matchmakingQueue.entries()) {
         if (sid === socket.id) {
           matchmakingQueue.delete(userId);

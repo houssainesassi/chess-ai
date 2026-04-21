@@ -6,9 +6,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/hooks/use-auth";
 import { api, type FriendData, type LeaderboardEntry, type Profile } from "@/lib/api";
-import { Globe2, Bot, UserPlus, Clock, Swords, Search, Check, X, ExternalLink, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
+import {
+  Globe2, Bot, UserPlus, Clock, Swords, Search, Check, X,
+  ExternalLink, ChevronDown, ChevronUp, Loader2, Users,
+} from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { io, Socket } from "socket.io-client";
+
+type TabType = "friends" | "players";
 
 export default function LobbyPage() {
   const { token, user } = useAuth();
@@ -17,7 +22,9 @@ export default function LobbyPage() {
 
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [friendData, setFriendData] = useState<FriendData>({ friends: [], pendingIn: [], pendingOut: [], openGameId: null });
+  const [allPlayers, setAllPlayers] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState<TabType>("friends");
 
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<Profile[]>([]);
@@ -26,20 +33,22 @@ export default function LobbyPage() {
   const [showPending, setShowPending] = useState(true);
   const searchTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
-  // Matchmaking state
   const [isMatchmaking, setIsMatchmaking] = useState(false);
   const [matchmakingStatus, setMatchmakingStatus] = useState("Searching for opponent...");
+  const [matchedOpponent, setMatchedOpponent] = useState<{ nickname: string; avatarColor: string; country?: string } | null>(null);
   const matchmakingSocketRef = useRef<Socket | null>(null);
 
   const fetchData = async () => {
     if (!token) return;
     try {
-      const [lbRes, frRes] = await Promise.all([
+      const [lbRes, frRes, playersRes] = await Promise.all([
         api.getLeaderboard(),
         api.getFriends(token),
+        api.getAllPlayers(token),
       ]);
       setLeaderboard(lbRes.leaderboard);
       setFriendData(frRes);
+      setAllPlayers(playersRes.profiles.filter((p) => p.userId !== user?.id));
     } catch (err) {
       console.error("Failed to fetch lobby data", err);
     } finally {
@@ -81,15 +90,11 @@ export default function LobbyPage() {
 
   const startMatchmaking = () => {
     if (!user?.id) return;
-
     setIsMatchmaking(true);
     setMatchmakingStatus("Searching for opponent...");
+    setMatchedOpponent(null);
 
-    const socket = io({
-      path: "/api/socket.io",
-      auth: { token },
-    });
-
+    const socket = io({ path: "/api/socket.io", auth: { token } });
     matchmakingSocketRef.current = socket;
 
     socket.on("connect", () => {
@@ -101,12 +106,34 @@ export default function LobbyPage() {
       setMatchmakingStatus(`In queue (position ${position})...`);
     });
 
-    socket.on("matchFound", ({ gameId }: { gameId: string }) => {
+    socket.on("matchFound", ({
+      gameId,
+      opponentNickname,
+      opponentAvatarColor,
+      opponentCountry,
+    }: {
+      gameId: string;
+      opponentNickname?: string;
+      opponentAvatarColor?: string;
+      opponentCountry?: string;
+    }) => {
       setIsMatchmaking(false);
       socket.disconnect();
       matchmakingSocketRef.current = null;
-      toast({ title: "Match found! Starting game..." });
-      setLocation(`/game/${gameId}`);
+
+      if (opponentNickname) {
+        setMatchedOpponent({
+          nickname: opponentNickname,
+          avatarColor: opponentAvatarColor || "#3b82f6",
+          country: opponentCountry,
+        });
+        setTimeout(() => {
+          setMatchedOpponent(null);
+          setLocation(`/game/${gameId}`);
+        }, 1800);
+      } else {
+        setLocation(`/game/${gameId}`);
+      }
     });
 
     socket.on("matchmakingError", () => {
@@ -122,9 +149,9 @@ export default function LobbyPage() {
       matchmakingSocketRef.current = null;
     }
     setIsMatchmaking(false);
+    setMatchedOpponent(null);
   };
 
-  // Clean up on unmount
   useEffect(() => {
     return () => {
       if (matchmakingSocketRef.current && user?.id) {
@@ -169,11 +196,16 @@ export default function LobbyPage() {
     }
   };
 
-  const challengeFriend = async (friendUserId: string) => {
+  const challengePlayer = async (targetUserId: string, isFriend: boolean) => {
     if (!token) return;
     try {
-      const res = await api.challengeFriend(token, friendUserId);
-      toast({ title: "Challenge sent!" });
+      let res: { gameId: string };
+      if (isFriend) {
+        res = await api.inviteFriend(token, targetUserId);
+      } else {
+        res = await api.challengeFriend(token, targetUserId);
+      }
+      toast({ title: "Challenge sent!", description: "Waiting for the player to accept." });
       setLocation(`/game/${res.gameId}`);
     } catch (err: any) {
       toast({ title: err.message || "Failed to challenge", variant: "destructive" });
@@ -192,24 +224,50 @@ export default function LobbyPage() {
     <div className="p-4 md:p-8 max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
 
       {/* Matchmaking overlay */}
-      {isMatchmaking && (
+      {(isMatchmaking || matchedOpponent) && (
         <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center backdrop-blur-sm">
           <div className="bg-card border border-border rounded-2xl p-10 flex flex-col items-center gap-6 shadow-2xl max-w-sm w-full mx-4 animate-in fade-in zoom-in duration-300">
-            <div className="relative w-20 h-20 flex items-center justify-center">
-              <div className="absolute inset-0 rounded-full border-4 border-green-500/20 animate-ping" />
-              <div className="absolute inset-2 rounded-full border-4 border-green-500/40 animate-ping animation-delay-150" />
-              <Globe2 className="w-10 h-10 text-green-500 relative z-10" />
-            </div>
-            <div className="text-center space-y-1">
-              <h2 className="text-xl font-bold">Finding a Match</h2>
-              <p className="text-muted-foreground text-sm flex items-center gap-2 justify-center">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                {matchmakingStatus}
-              </p>
-            </div>
-            <Button variant="outline" className="w-full" onClick={cancelMatchmaking}>
-              Cancel
-            </Button>
+            {matchedOpponent ? (
+              <>
+                <div
+                  className="w-20 h-20 rounded-full flex items-center justify-center text-3xl font-bold text-white shadow-lg"
+                  style={{ background: matchedOpponent.avatarColor }}
+                >
+                  {matchedOpponent.nickname.charAt(0).toUpperCase()}
+                </div>
+                <div className="text-center space-y-1">
+                  <h2 className="text-xl font-bold">Match Found!</h2>
+                  <p className="text-muted-foreground text-sm">
+                    Playing against{" "}
+                    <span className="font-semibold text-foreground">{matchedOpponent.nickname}</span>
+                    {matchedOpponent.country && <span className="ml-1">({matchedOpponent.country})</span>}
+                  </p>
+                </div>
+                <div className="flex gap-1">
+                  {[...Array(3)].map((_, i) => (
+                    <div key={i} className="w-2 h-2 rounded-full bg-green-500 animate-bounce" style={{ animationDelay: `${i * 150}ms` }} />
+                  ))}
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="relative w-20 h-20 flex items-center justify-center">
+                  <div className="absolute inset-0 rounded-full border-4 border-green-500/20 animate-ping" />
+                  <div className="absolute inset-2 rounded-full border-4 border-green-500/40 animate-ping" style={{ animationDelay: "150ms" }} />
+                  <Globe2 className="w-10 h-10 text-green-500 relative z-10" />
+                </div>
+                <div className="text-center space-y-1">
+                  <h2 className="text-xl font-bold">Finding a Match</h2>
+                  <p className="text-muted-foreground text-sm flex items-center gap-2 justify-center">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    {matchmakingStatus}
+                  </p>
+                </div>
+                <Button variant="outline" className="w-full" onClick={cancelMatchmaking}>
+                  Cancel
+                </Button>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -293,6 +351,7 @@ export default function LobbyPage() {
         </div>
       </div>
 
+      {/* Right panel: Friends / Players */}
       <div className="space-y-4">
         {showSearch ? (
           <Card className="bg-card border-border">
@@ -351,118 +410,184 @@ export default function LobbyPage() {
           </Card>
         ) : (
           <Card className="bg-card border-border">
-            <div className="p-4 border-b border-border flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <h3 className="font-bold">Friends</h3>
+            {/* Tab header */}
+            <div className="p-2 border-b border-border flex items-center gap-1">
+              <button
+                onClick={() => setTab("friends")}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-sm font-medium transition-colors ${tab === "friends" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground hover:bg-muted/50"}`}
+              >
+                Friends
                 {totalPending > 0 && (
-                  <Badge className="bg-primary text-primary-foreground text-xs h-5 px-1.5">{totalPending}</Badge>
+                  <Badge className="bg-red-500 text-white text-[10px] h-4 px-1 min-w-[16px]">{totalPending}</Badge>
                 )}
-              </div>
-              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setShowSearch(true)}>
+              </button>
+              <button
+                onClick={() => setTab("players")}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-sm font-medium transition-colors ${tab === "players" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground hover:bg-muted/50"}`}
+              >
+                <Users className="w-3.5 h-3.5" />
+                Players
+              </button>
+              <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => setShowSearch(true)}>
                 <UserPlus className="h-4 w-4" />
               </Button>
             </div>
 
-            {friendData.pendingIn.length > 0 && (
-              <div className="border-b border-border">
-                <button
-                  className="w-full flex items-center justify-between px-4 py-2 text-sm text-muted-foreground hover:bg-muted/50 transition-colors"
-                  onClick={() => setShowPending(!showPending)}
-                >
-                  <span className="font-medium text-foreground">Requests ({friendData.pendingIn.length})</span>
-                  {showPending ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                </button>
-                {showPending && (
-                  <div className="px-2 pb-2 space-y-1">
-                    {friendData.pendingIn.map((req) => {
+            {tab === "friends" ? (
+              <>
+                {/* Pending incoming */}
+                {friendData.pendingIn.length > 0 && (
+                  <div className="border-b border-border">
+                    <button
+                      className="w-full flex items-center justify-between px-4 py-2 text-sm text-muted-foreground hover:bg-muted/50 transition-colors"
+                      onClick={() => setShowPending(!showPending)}
+                    >
+                      <span className="font-medium text-foreground">Requests ({friendData.pendingIn.length})</span>
+                      {showPending ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                    </button>
+                    {showPending && (
+                      <div className="px-2 pb-2 space-y-1">
+                        {friendData.pendingIn.map((req) => {
+                          const name = req.profile?.nickname || req.userId.slice(0, 8);
+                          const color = req.profile?.avatarColor || "#555";
+                          return (
+                            <div key={req.requestId} className="flex items-center gap-2 p-2 rounded-md bg-muted/30">
+                              <Link href={`/profile/${req.userId}`} className="flex items-center gap-2 flex-1 min-w-0">
+                                <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0" style={{ background: color }}>
+                                  {name.charAt(0).toUpperCase()}
+                                </div>
+                                <span className="text-sm font-medium truncate">{name}</span>
+                              </Link>
+                              <button className="w-7 h-7 rounded-full bg-green-500/15 text-green-500 hover:bg-green-500/25 flex items-center justify-center transition-colors" onClick={() => acceptRequest(req.requestId)}>
+                                <Check className="w-3 h-3" />
+                              </button>
+                              <button className="w-7 h-7 rounded-full bg-destructive/15 text-destructive hover:bg-destructive/25 flex items-center justify-center transition-colors" onClick={() => declineRequest(req.requestId)}>
+                                <X className="w-3 h-3" />
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Pending outgoing */}
+                {friendData.pendingOut.length > 0 && (
+                  <div className="border-b border-border px-4 py-2 space-y-1">
+                    <p className="text-xs text-muted-foreground mb-1">Sent</p>
+                    {friendData.pendingOut.map((req) => {
                       const name = req.profile?.nickname || req.userId.slice(0, 8);
                       const color = req.profile?.avatarColor || "#555";
                       return (
-                        <div key={req.requestId} className="flex items-center gap-2 p-2 rounded-md bg-muted/30">
-                          <Link href={`/profile/${req.userId}`} className="flex items-center gap-2 flex-1 min-w-0">
-                            <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0" style={{ background: color }}>
-                              {name.charAt(0).toUpperCase()}
-                            </div>
-                            <span className="text-sm font-medium truncate">{name}</span>
-                          </Link>
-                          <button className="w-7 h-7 rounded-full bg-green-500/15 text-green-500 hover:bg-green-500/25 flex items-center justify-center transition-colors" onClick={() => acceptRequest(req.requestId)}>
-                            <Check className="w-3 h-3" />
-                          </button>
-                          <button className="w-7 h-7 rounded-full bg-destructive/15 text-destructive hover:bg-destructive/25 flex items-center justify-center transition-colors" onClick={() => declineRequest(req.requestId)}>
-                            <X className="w-3 h-3" />
-                          </button>
+                        <div key={req.requestId} className="flex items-center gap-2 py-1">
+                          <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0" style={{ background: color }}>
+                            {name.charAt(0).toUpperCase()}
+                          </div>
+                          <span className="text-sm flex-1 truncate">{name}</span>
+                          <Badge variant="secondary" className="text-xs shrink-0">Pending</Badge>
                         </div>
                       );
                     })}
                   </div>
                 )}
-              </div>
-            )}
 
-            {friendData.pendingOut.length > 0 && (
-              <div className="border-b border-border px-4 py-2 space-y-1">
-                <p className="text-xs text-muted-foreground mb-1">Sent</p>
-                {friendData.pendingOut.map((req) => {
-                  const name = req.profile?.nickname || req.userId.slice(0, 8);
-                  const color = req.profile?.avatarColor || "#555";
-                  return (
-                    <div key={req.requestId} className="flex items-center gap-2 py-1">
-                      <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0" style={{ background: color }}>
-                        {name.charAt(0).toUpperCase()}
-                      </div>
-                      <span className="text-sm flex-1 truncate">{name}</span>
-                      <Badge variant="secondary" className="text-xs shrink-0">Pending</Badge>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            <div className="p-2 flex-1 overflow-auto max-h-96 space-y-1">
-              {loading ? (
-                <div className="p-4 text-center text-muted-foreground text-sm">Loading...</div>
-              ) : friendData.friends.length > 0 ? (
-                friendData.friends.map((friend) => {
-                  const profile = friend.profile;
-                  const name = profile?.nickname || friend.userId.slice(0, 8);
-                  const color = profile?.avatarColor || "#555";
-                  return (
-                    <div key={friend.requestId} className="flex items-center justify-between p-2 rounded-md hover:bg-muted/50 transition-colors group">
-                      <Link href={`/profile/${friend.userId}`} className="flex items-center gap-2 flex-1 min-w-0">
-                        <div className="relative shrink-0">
-                          <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white" style={{ background: color }}>
-                            {name.charAt(0).toUpperCase()}
+                {/* Friends list */}
+                <div className="p-2 flex-1 overflow-auto max-h-96 space-y-1">
+                  {loading ? (
+                    <div className="p-4 text-center text-muted-foreground text-sm">Loading...</div>
+                  ) : friendData.friends.length > 0 ? (
+                    friendData.friends.map((friend) => {
+                      const profile = friend.profile;
+                      const name = profile?.nickname || friend.userId.slice(0, 8);
+                      const color = profile?.avatarColor || "#555";
+                      return (
+                        <div key={friend.requestId} className="flex items-center justify-between p-2 rounded-md hover:bg-muted/50 transition-colors">
+                          <Link href={`/profile/${friend.userId}`} className="flex items-center gap-2 flex-1 min-w-0">
+                            <div className="relative shrink-0">
+                              <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white" style={{ background: color }}>
+                                {name.charAt(0).toUpperCase()}
+                              </div>
+                              <div className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-card bg-gray-500" />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium truncate">{name}</p>
+                              {profile?.country && <p className="text-xs text-muted-foreground">{profile.country}</p>}
+                            </div>
+                          </Link>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-xs gap-1"
+                              onClick={() => challengePlayer(friend.userId, true)}
+                            >
+                              <Swords className="w-3 h-3" />
+                              Challenge
+                            </Button>
+                            <Link href={`/profile/${friend.userId}`}>
+                              <Button size="icon" variant="ghost" className="h-7 w-7">
+                                <ExternalLink className="w-3 h-3" />
+                              </Button>
+                            </Link>
                           </div>
-                          <div className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-card bg-gray-500" />
                         </div>
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium truncate">{name}</p>
-                          {profile?.country && <p className="text-xs text-muted-foreground">{profile.country}</p>}
-                        </div>
-                      </Link>
-                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => challengeFriend(friend.userId)} title="Challenge">
-                          <Swords className="w-3 h-3" />
-                        </Button>
-                        <Link href={`/profile/${friend.userId}`}>
-                          <Button size="icon" variant="ghost" className="h-7 w-7" title="View Profile">
-                            <ExternalLink className="w-3 h-3" />
-                          </Button>
-                        </Link>
-                      </div>
+                      );
+                    })
+                  ) : (
+                    <div className="p-6 text-center flex flex-col items-center">
+                      <p className="text-sm text-muted-foreground">No friends yet</p>
+                      <Button variant="outline" size="sm" className="mt-3" onClick={() => setShowSearch(true)}>
+                        <Search className="w-3 h-3 mr-2" />
+                        Find Players
+                      </Button>
                     </div>
-                  );
-                })
-              ) : (
-                <div className="p-6 text-center flex flex-col items-center">
-                  <p className="text-sm text-muted-foreground">No friends yet</p>
-                  <Button variant="outline" size="sm" className="mt-3" onClick={() => setShowSearch(true)}>
-                    <Search className="w-3 h-3 mr-2" />
-                    Find Players
-                  </Button>
+                  )}
                 </div>
-              )}
-            </div>
+              </>
+            ) : (
+              /* Players tab */
+              <div className="p-2 overflow-auto max-h-[500px] space-y-1">
+                {loading ? (
+                  <div className="p-4 text-center text-muted-foreground text-sm">Loading...</div>
+                ) : allPlayers.length > 0 ? (
+                  allPlayers.map((player) => {
+                    const status = getFriendStatus(player.userId);
+                    return (
+                      <div key={player.userId} className="flex items-center justify-between p-2 rounded-md hover:bg-muted/50 transition-colors">
+                        <Link href={`/profile/${player.userId}`} className="flex items-center gap-2 flex-1 min-w-0">
+                          <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white shrink-0" style={{ background: player.avatarColor || "#3b82f6" }}>
+                            {(player.nickname || "?").charAt(0).toUpperCase()}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium truncate">{player.nickname}</p>
+                            {player.country && <p className="text-xs text-muted-foreground">{player.country}</p>}
+                          </div>
+                        </Link>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-xs gap-1"
+                            onClick={() => challengePlayer(player.userId, status === "friends")}
+                          >
+                            <Swords className="w-3 h-3" />
+                            Play
+                          </Button>
+                          {status === "none" && (
+                            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => sendFriendRequest(player.userId)} title="Add friend">
+                              <UserPlus className="w-3 h-3" />
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="p-6 text-center text-sm text-muted-foreground">No other players yet</div>
+                )}
+              </div>
+            )}
           </Card>
         )}
       </div>

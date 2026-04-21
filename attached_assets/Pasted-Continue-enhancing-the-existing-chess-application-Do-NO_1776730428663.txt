@@ -1,0 +1,131 @@
+Continue enhancing the existing chess application.
+⚠️ Do NOT rebuild the app. Extend the current system safely and keep all existing functionality working.
+
+---
+
+# 🧠 Database Improvement (VERY IMPORTANT)
+
+## Merge Users Tables
+
+* Integrate `users` and `user_profiles` into a single unified table
+
+### 🎯 Goal:
+
+* Each player has ONE identity for:
+  → authentication
+  → profile (nickname, avatar, etc.)
+  → gameplay
+
+### Requirements:
+
+* Create a unified user model:
+
+  * id
+  * email (or auth id)
+  * nickname
+  * avatar
+  * avatarColor
+  * online status
+
+* Update backend to use this unified user model everywhere:
+  → matchmaking
+  → friends system
+  → game history
+  → chat
+
+* Ensure no breaking changes:
+  → migrate existing data safely
+  → keep authentication working
+
+---
+
+# 👥 Play with Players (Improved System)
+
+## 🎮 Play with Friends (NO LINKS)
+
+* Remove link-based invite system completely
+
+* Allow users to:
+  → see list of players (or friends)
+  → click “Play” next to a player
+
+* When clicked:
+  → send real-time game request
+
+* Receiver gets popup:
+  → "Player X wants to play with you"
+  → Accept / Decline
+
+* If accepted:
+  → create game room instantly
+
+* If declined:
+  → notify sender
+
+---
+
+# ⚔️ Matchmaking (Play Online)
+
+* Keep existing matchmaking system
+
+* Improve:
+  → if two players click "Play Online" at same time
+  → match instantly
+
+* When match is found:
+  → display opponent:
+
+  * nickname
+  * avatar
+  * status
+
+---
+
+# 🖼️ Board Design (UI Upgrade)
+
+* Update the chess board design to match the provided reference image
+
+### Requirements:
+
+* Modern chess.com-inspired board
+
+* Clean squares (light/dark contrast)
+
+* Smooth piece movement animations
+
+* Highlight:
+  → last move
+  → selected piece
+  → possible moves
+
+* Add subtle UI polish:
+  → shadows
+  → rounded corners
+  → smooth transitions
+
+---
+
+# 🎨 UI Consistency
+
+* Ensure board matches overall app design
+* Keep modern, minimal aesthetic
+* Maintain responsiveness across devices
+
+---
+
+# ⚙️ Backend Rules
+
+* Do NOT break authentication system
+* Safely migrate from two tables → one
+* Update all API responses accordingly
+* Ensure sockets use unified user data (nickname, avatar)
+
+---
+
+# 🏁 Goal
+
+* One unified user system
+* Clean player identity across the app
+* Seamless play between users
+* Modern chess board design
+* Stable and scalable architecture
