@@ -6,6 +6,7 @@ import { Chess } from "chess.js";
 import { Flag, RotateCcw, Mic, MicOff, Bot, List, X, ArrowLeft, Settings2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
+import { usePreferences, type BoardTheme } from "@/hooks/use-preferences";
 import {
   Select,
   SelectContent,
@@ -35,12 +36,13 @@ const SYM: Record<string, string> = {
 // ── Chess board ───────────────────────────────────────────────────────────────
 
 function ChessBoard({
-  fen, onMove, disabled, lastMove,
+  fen, onMove, disabled, lastMove, theme,
 }: {
   fen: string;
   onMove: (from: string, to: string, promotion?: string) => void;
   disabled: boolean;
   lastMove: { from: string; to: string } | null;
+  theme: BoardTheme;
 }) {
   const chess = new Chess(fen);
   const board = chess.board();
@@ -97,22 +99,31 @@ function ChessBoard({
               const tgt = legalTargets.includes(sq);
               const lm = lastMove && (lastMove.from === sq || lastMove.to === sq);
               const pk = square ? (square.color === "w" ? square.type.toUpperCase() : square.type) : null;
+              const bgColor = sel ? theme.highlight : lm && !sel ? (light ? theme.lmLight : theme.lmDark) : (light ? theme.light : theme.dark);
               return (
                 <div key={j} onClick={() => handleClick(sq)}
                   className={`flex-1 flex items-center justify-center cursor-pointer relative select-none transition-all duration-150
-                    ${light ? "bg-[#eeeed2]" : "bg-[#769656]"}
-                    ${sel ? "!bg-[#f6f669]/70" : ""}
-                    ${lm && !sel ? (light ? "!bg-[#cdd16f]/70" : "!bg-[#aaa23a]/80") : ""}
-                    ${tgt && !square ? "after:absolute after:inset-[32%] after:rounded-full after:bg-black/18 after:pointer-events-none" : ""}
-                    ${tgt && square ? "ring-[3px] ring-inset ring-black/25" : ""}`}>
+                    ${tgt && !square ? "after:absolute after:inset-[32%] after:rounded-full after:pointer-events-none" : ""}
+                    ${tgt && square ? "ring-[3px] ring-inset" : ""}`}
+                  style={{
+                    background: bgColor,
+                    ...(tgt && !square ? { "--tw-after-bg": theme.dotColor } as any : {}),
+                    ...(tgt && square ? { "--tw-ring-color": theme.ringColor } as any : {}),
+                  }}>
+                  {tgt && !square && (
+                    <div className="absolute inset-[32%] rounded-full pointer-events-none" style={{ background: theme.dotColor }} />
+                  )}
+                  {tgt && square && (
+                    <div className="absolute inset-0 rounded-none pointer-events-none" style={{ boxShadow: `inset 0 0 0 3px ${theme.ringColor}` }} />
+                  )}
                   {square && (
                     <span className={`text-[clamp(1.2rem,4vw,3.5rem)] leading-none drop-shadow-md select-none
                       ${square.color === "w" ? "text-white [text-shadow:0_1px_2px_rgba(0,0,0,0.9)]" : "text-[#1a1a1a] [text-shadow:0_1px_0_rgba(255,255,255,0.4)]"}`}>
                       {pk ? SYM[pk] : ""}
                     </span>
                   )}
-                  {j === 0 && <span className={`absolute top-0.5 left-0.5 text-[9px] font-bold leading-none ${light ? "text-[#769656]" : "text-[#eeeed2]"}`}>{rank}</span>}
-                  {i === 7 && <span className={`absolute bottom-0.5 right-0.5 text-[9px] font-bold leading-none ${light ? "text-[#769656]" : "text-[#eeeed2]"}`}>{file}</span>}
+                  {j === 0 && <span className="absolute top-0.5 left-0.5 text-[9px] font-bold leading-none" style={{ color: light ? theme.coordOnLight : theme.coordOnDark }}>{rank}</span>}
+                  {i === 7 && <span className="absolute bottom-0.5 right-0.5 text-[9px] font-bold leading-none" style={{ color: light ? theme.coordOnLight : theme.coordOnDark }}>{file}</span>}
                 </div>
               );
             })}
@@ -144,6 +155,7 @@ export default function GamePage() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [, setLocation] = useLocation();
+  const { theme, playMove, playCheck, playGameEnd } = usePreferences();
 
   const [gameState, setGameState] = useState<any>(null);
   const [moveHistory, setMoveHistory] = useState<any[]>([]);
@@ -180,25 +192,33 @@ export default function GamePage() {
     try {
       const res = await apiPost("/api/game/ai-move", { depth: difficulty.depth });
       setGameState(res.gameState);
+      if (res.gameState.isGameOver) playGameEnd(false);
+      else if (res.gameState.isCheck) playCheck();
+      else playMove(false);
       await refresh();
     } catch (err: any) {
       toast({ title: err.message || "AI move failed", variant: "destructive" });
     } finally { setAiThinking(false); }
-  }, [difficulty.depth, refresh]);
+  }, [difficulty.depth, refresh, playMove, playCheck, playGameEnd]);
 
   const handleMove = useCallback(async (from: string, to: string, promotion?: string) => {
     if (moving || aiThinking || !gameState) return;
     const chess = new Chess(gameState.fen);
     if (chess.turn() !== playerColor) return;
+    const isCapture = !!chess.get(to as any);
     setMoving(true);
     try {
       const res = await apiPost("/api/game/move", { move: promotion ? `${from}${to}${promotion}` : `${from}${to}`, source: "ui" });
       setGameState(res.gameState);
+      // Sound feedback
+      if (res.gameState.isGameOver) playGameEnd(res.gameState.isCheckmate && chess.turn() !== playerColor);
+      else if (res.gameState.isCheck) playCheck();
+      else playMove(isCapture);
       await refresh();
       if (!res.gameState.isGameOver) setTimeout(triggerAiMove, 300);
     } catch { toast({ title: "Invalid move", variant: "destructive" }); }
     finally { setMoving(false); }
-  }, [moving, aiThinking, gameState, playerColor, triggerAiMove, refresh]);
+  }, [moving, aiThinking, gameState, playerColor, triggerAiMove, refresh, playMove, playCheck, playGameEnd]);
 
   const handleUndo = async () => {
     if (aiThinking || moving) return;
@@ -328,6 +348,7 @@ export default function GamePage() {
             onMove={handleMove}
             disabled={!isPlayerTurn || moving || aiThinking}
             lastMove={gameState.lastMove}
+            theme={theme}
           />
         </div>
       </div>

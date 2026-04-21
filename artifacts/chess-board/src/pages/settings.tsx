@@ -5,10 +5,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { Trash2, Save, User } from "lucide-react";
+import { Trash2, Save, User, Volume2 } from "lucide-react";
 import { useLocation } from "wouter";
+import { usePreferences, BOARD_THEMES, SOUND_PACKS } from "@/hooks/use-preferences";
 
 const AVATAR_COLORS = [
   "#3b82f6", "#10b981", "#f59e0b", "#ef4444",
@@ -27,14 +27,13 @@ export default function SettingsPage() {
   const { user, token, logout } = useAuth();
   const { toast } = useToast();
   const [, setLocation] = useLocation();
+  const { theme, themeId, setThemeId, soundPackId, setSoundPackId, playMove, playCheck } = usePreferences();
 
   const [nickname, setNickname] = useState("");
   const [country, setCountry] = useState("Other");
   const [avatarColor, setAvatarColor] = useState(AVATAR_COLORS[0]);
   const [profileLoading, setProfileLoading] = useState(true);
   const [saveLoading, setSaveLoading] = useState(false);
-  const [soundEnabled, setSoundEnabled] = useState(true);
-  const [animationsEnabled, setAnimationsEnabled] = useState(true);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
 
   useEffect(() => {
@@ -88,6 +87,7 @@ export default function SettingsPage() {
     <div className="p-4 md:p-8 max-w-2xl mx-auto space-y-6">
       <h1 className="text-3xl font-bold">Settings</h1>
 
+      {/* ── Profile ── */}
       <Card className="bg-card border-border">
         <CardHeader>
           <CardTitle>Profile</CardTitle>
@@ -170,29 +170,108 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
+      {/* ── Board Theme ── */}
       <Card className="bg-card border-border">
         <CardHeader>
-          <CardTitle>Preferences</CardTitle>
-          <CardDescription>Manage your gameplay experience</CardDescription>
+          <CardTitle>Board Theme</CardTitle>
+          <CardDescription>Choose the look of your chess board</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="space-y-0.5">
-              <Label>Sound Effects</Label>
-              <div className="text-sm text-muted-foreground">Play sounds when pieces move</div>
-            </div>
-            <Switch checked={soundEnabled} onCheckedChange={setSoundEnabled} />
-          </div>
-          <div className="flex items-center justify-between">
-            <div className="space-y-0.5">
-              <Label>Move Animations</Label>
-              <div className="text-sm text-muted-foreground">Smoothly animate pieces between squares</div>
-            </div>
-            <Switch checked={animationsEnabled} onCheckedChange={setAnimationsEnabled} />
+        <CardContent>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {BOARD_THEMES.map((t) => (
+              <button
+                key={t.id}
+                onClick={() => setThemeId(t.id)}
+                className={`flex flex-col items-center gap-2 p-3 rounded-xl border-2 transition-all hover:scale-[1.02] ${
+                  themeId === t.id ? "border-primary shadow-md" : "border-border hover:border-primary/40"
+                }`}
+              >
+                {/* Mini board preview */}
+                <div className="w-full aspect-square max-w-[72px] grid grid-cols-4 grid-rows-4 rounded overflow-hidden shadow">
+                  {Array.from({ length: 16 }, (_, idx) => {
+                    const row = Math.floor(idx / 4);
+                    const col = idx % 4;
+                    const isLight = (row + col) % 2 === 0;
+                    return (
+                      <div
+                        key={idx}
+                        style={{ background: isLight ? t.light : t.dark }}
+                      />
+                    );
+                  })}
+                </div>
+                <span className={`text-xs font-medium ${themeId === t.id ? "text-primary" : "text-muted-foreground"}`}>
+                  {t.name}
+                </span>
+              </button>
+            ))}
           </div>
         </CardContent>
       </Card>
 
+      {/* ── Sound Pack ── */}
+      <Card className="bg-card border-border">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Volume2 className="w-5 h-5" />
+            Sound Pack
+          </CardTitle>
+          <CardDescription>Choose how pieces sound when they move</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {SOUND_PACKS.map((sp) => (
+              <button
+                key={sp.id}
+                onClick={() => {
+                  setSoundPackId(sp.id);
+                  playMove();
+                }}
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl border-2 text-left transition-all hover:scale-[1.02] ${
+                  soundPackId === sp.id ? "border-primary bg-primary/5 shadow-md" : "border-border hover:border-primary/40"
+                }`}
+              >
+                <span className="text-2xl leading-none">{sp.emoji}</span>
+                <div>
+                  <p className={`text-sm font-medium ${soundPackId === sp.id ? "text-primary" : ""}`}>{sp.name}</p>
+                </div>
+              </button>
+            ))}
+          </div>
+
+          <div className="mt-4 flex items-center gap-3">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => playMove()}
+              className="flex items-center gap-2"
+            >
+              <Volume2 className="w-3.5 h-3.5" />
+              Preview Move
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => playMove(true)}
+              className="flex items-center gap-2"
+            >
+              <Volume2 className="w-3.5 h-3.5" />
+              Preview Capture
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => playCheck()}
+              className="flex items-center gap-2"
+            >
+              <Volume2 className="w-3.5 h-3.5" />
+              Preview Check
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ── Danger Zone ── */}
       <Card className="border-destructive/40 bg-destructive/5">
         <CardHeader>
           <CardTitle className="text-destructive">Danger Zone</CardTitle>

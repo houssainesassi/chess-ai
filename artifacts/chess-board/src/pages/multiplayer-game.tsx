@@ -11,6 +11,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { io, Socket } from "socket.io-client";
 import { Input } from "@/components/ui/input";
+import { usePreferences, type BoardTheme } from "@/hooks/use-preferences";
 
 // ── Pieces ────────────────────────────────────────────────────────────────────
 
@@ -22,13 +23,14 @@ const SYM: Record<string, string> = {
 // ── Board ─────────────────────────────────────────────────────────────────────
 
 function MultiplayerBoard({
-  fen, onMove, isPlayerTurn, flipped, lastMove,
+  fen, onMove, isPlayerTurn, flipped, lastMove, theme,
 }: {
   fen: string;
   onMove: (from: string, to: string, promotion?: string) => void;
   isPlayerTurn: boolean;
   flipped: boolean;
   lastMove: { from: string; to: string } | null;
+  theme: BoardTheme;
 }) {
   const chess = new Chess(fen);
   const rawBoard = chess.board();
@@ -91,22 +93,24 @@ function MultiplayerBoard({
               const pk = square ? (square.color === "w" ? square.type.toUpperCase() : square.type) : null;
               return (
                 <div key={j} onClick={() => handleClick(sq)}
-                  className={`flex-1 flex items-center justify-center cursor-pointer relative select-none transition-all duration-150
-                    ${light ? "bg-[#eeeed2]" : "bg-[#769656]"}
-                    ${sel ? "!bg-[#f6f669]/70" : ""}
-                    ${lm && !sel ? (light ? "!bg-[#cdd16f]/70" : "!bg-[#aaa23a]/80") : ""}
-                    ${tgt && !square ? "after:absolute after:inset-[32%] after:rounded-full after:bg-black/18 after:pointer-events-none" : ""}
-                    ${tgt && square ? "ring-[3px] ring-inset ring-black/25" : ""}`}>
+                  className="flex-1 flex items-center justify-center cursor-pointer relative select-none transition-all duration-150"
+                  style={{ background: sel ? theme.highlight : lm && !sel ? (light ? theme.lmLight : theme.lmDark) : (light ? theme.light : theme.dark) }}>
+                  {tgt && !square && (
+                    <div className="absolute inset-[32%] rounded-full pointer-events-none" style={{ background: theme.dotColor }} />
+                  )}
+                  {tgt && square && (
+                    <div className="absolute inset-0 pointer-events-none" style={{ boxShadow: `inset 0 0 0 3px ${theme.ringColor}` }} />
+                  )}
                   {square && (
                     <span className={`text-[clamp(1.2rem,4vw,3.5rem)] leading-none drop-shadow-md select-none
                       ${square.color === "w" ? "text-white [text-shadow:0_1px_2px_rgba(0,0,0,0.9)]" : "text-[#1a1a1a] [text-shadow:0_1px_0_rgba(255,255,255,0.4)]"}`}>
                       {pk ? SYM[pk] : ""}
                     </span>
                   )}
-                  {!flipped && j === 0 && <span className={`absolute top-0.5 left-0.5 text-[9px] font-bold leading-none ${light ? "text-[#769656]" : "text-[#eeeed2]"}`}>{8-i}</span>}
-                  {!flipped && i === 7 && <span className={`absolute bottom-0.5 right-0.5 text-[9px] font-bold leading-none ${light ? "text-[#769656]" : "text-[#eeeed2]"}`}>{String.fromCharCode(97+j)}</span>}
-                  {flipped && j === 7 && <span className={`absolute top-0.5 right-0.5 text-[9px] font-bold leading-none ${light ? "text-[#769656]" : "text-[#eeeed2]"}`}>{i+1}</span>}
-                  {flipped && i === 0 && <span className={`absolute bottom-0.5 left-0.5 text-[9px] font-bold leading-none ${light ? "text-[#769656]" : "text-[#eeeed2]"}`}>{String.fromCharCode(104-j)}</span>}
+                  {!flipped && j === 0 && <span className="absolute top-0.5 left-0.5 text-[9px] font-bold leading-none" style={{ color: light ? theme.coordOnLight : theme.coordOnDark }}>{8-i}</span>}
+                  {!flipped && i === 7 && <span className="absolute bottom-0.5 right-0.5 text-[9px] font-bold leading-none" style={{ color: light ? theme.coordOnLight : theme.coordOnDark }}>{String.fromCharCode(97+j)}</span>}
+                  {flipped && j === 7 && <span className="absolute top-0.5 right-0.5 text-[9px] font-bold leading-none" style={{ color: light ? theme.coordOnLight : theme.coordOnDark }}>{i+1}</span>}
+                  {flipped && i === 0 && <span className="absolute bottom-0.5 left-0.5 text-[9px] font-bold leading-none" style={{ color: light ? theme.coordOnLight : theme.coordOnDark }}>{String.fromCharCode(104-j)}</span>}
                 </div>
               );
             })}
@@ -239,6 +243,7 @@ export default function MultiplayerGamePage() {
   const { token, user } = useAuth();
   const { toast } = useToast();
   const [, setLocation] = useLocation();
+  const { theme, playMove, playCheck, playGameEnd } = usePreferences();
 
   const [game, setGame] = useState<any>(null);
   const [opponentProfile, setOpponentProfile] = useState<{ nickname: string; avatarColor: string; country?: string } | null>(null);
@@ -268,6 +273,8 @@ export default function MultiplayerGamePage() {
   const handleMove = useCallback(async (from: string, to: string, promotion?: string) => {
     const moveStr = promotion ? `${from}${to}${promotion}` : `${from}${to}`;
     try {
+      const currentGame = await fetch(`/api/games/${id}`, { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json()).catch(() => null);
+      const isCapture = currentGame ? !!new Chess(currentGame.fen || "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1").get(to as any) : false;
       const res = await fetch(`/api/games/${id}/move`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
@@ -276,8 +283,12 @@ export default function MultiplayerGamePage() {
       if (!res.ok) throw new Error("Invalid move");
       const updated = await res.json();
       setGame((prev: any) => prev ? { ...prev, ...updated, ...updated.gameState } : updated);
+      // Sound feedback
+      if (updated.isCheckmate || updated.isDraw || updated.isStalemate) playGameEnd(true);
+      else if (updated.isCheck) playCheck();
+      else playMove(isCapture);
     } catch { toast({ title: "Invalid Move", variant: "destructive" }); }
-  }, [id, token, toast]);
+  }, [id, token, toast, playMove, playCheck, playGameEnd]);
 
   const handleCameraSquare = useCallback((sq: string) => {
     if (voiceSelection) { handleMove(voiceSelection, sq); setVoiceSelection(null); toast({ title: `${voiceSelection}→${sq}` }); }
@@ -312,7 +323,16 @@ export default function MultiplayerGamePage() {
 
     const sock = io({ path: "/api/socket.io", auth: { token } });
     sock.on("connect", () => { sock.emit("joinGame", { gameId: id }); if (user?.id) sock.emit("registerUser", { userId: user.id }); });
-    sock.on("roomUpdate", (engineState: any) => { setGame((prev: any) => prev ? { ...prev, ...engineState } : engineState); });
+    sock.on("roomUpdate", (engineState: any) => {
+      setGame((prev: any) => {
+        if (prev && engineState.fen && engineState.fen !== prev.fen) {
+          if (engineState.isCheckmate || engineState.isDraw || engineState.isStalemate) playGameEnd(false);
+          else if (engineState.isCheck) playCheck();
+          else playMove(false);
+        }
+        return prev ? { ...prev, ...engineState } : engineState;
+      });
+    });
     sock.on("chatMessage", (msg: any) => {
       setMessages(p => [...p, { sender: msg.username, text: msg.message }]);
       if (!showChat) setUnreadChat(n => n + 1);
@@ -469,7 +489,7 @@ export default function MultiplayerGamePage() {
       {/* ── Board ── */}
       <div ref={boardContainerRef} className="flex-1 min-h-0 flex items-center justify-center p-1 bg-background">
         <div className="h-full aspect-square max-w-full">
-          <MultiplayerBoard fen={fen} onMove={handleMove} isPlayerTurn={isMyTurn} flipped={flipped} lastMove={lastMove} />
+          <MultiplayerBoard fen={fen} onMove={handleMove} isPlayerTurn={isMyTurn} flipped={flipped} lastMove={lastMove} theme={theme} />
         </div>
       </div>
 
