@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Chess } from "chess.js";
 import {
   ArrowLeft, Flag, Send, Handshake, Mic, MicOff,
-  Camera, X, Trophy, Minus, Video, VideoOff, MessageSquare, List,
+  Camera, X, Trophy, Minus, Video, VideoOff, MessageSquare, List, Mouse, Hand,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { io, Socket } from "socket.io-client";
@@ -123,11 +123,13 @@ function MultiplayerBoard({
 
 // ── Camera (MediaPipe) ────────────────────────────────────────────────────────
 
-function CameraOverlay({ onClose, onSquareSelect, flipped }: {
-  onClose: () => void;
-  boardRef: React.RefObject<HTMLDivElement | null>;
+function CameraOverlay({ onSquareSelect, flipped, trackingActive, onHoverChange }: {
+  onClose?: () => void;
+  boardRef?: React.RefObject<HTMLDivElement | null>;
   onSquareSelect: (sq: string) => void;
   flipped: boolean;
+  trackingActive?: boolean;
+  onHoverChange?: (sq: string | null) => void;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -241,8 +243,9 @@ function CameraOverlay({ onClose, onSquareSelect, flipped }: {
         ctx.strokeStyle = "white"; ctx.lineWidth = 2.5; ctx.stroke();
 
         // Map to square using normalized coords (tip.x/tip.y are raw, not mirrored)
-        const sq = sqFromNorm(tip.x, tip.y);
-        setHoveredSq(sq);
+        const sq = trackingActive !== false ? sqFromNorm(tip.x, tip.y) : "";
+        setHoveredSq(sq || null);
+        onHoverChange?.(sq || null);
 
         // Highlight the hovered cell on the grid
         const mx = 1 - tip.x; // mirrored x for display
@@ -277,6 +280,7 @@ function CameraOverlay({ onClose, onSquareSelect, flipped }: {
       } else {
         setStatus("Show your hand to the camera");
         setHoveredSq(null);
+        onHoverChange?.(null);
         dwellRef.current = null;
         setDwellPct(0);
       }
@@ -312,33 +316,28 @@ function CameraOverlay({ onClose, onSquareSelect, flipped }: {
   }, [mpLoaded, sqFromNorm, onSquareSelect]);
 
   return (
-    <div className="absolute bottom-[57px] right-0 w-80 bg-card border border-border rounded-tl-xl shadow-2xl z-30 overflow-hidden">
-      <div className="flex items-center justify-between p-3 border-b border-border">
-        <div className="flex items-center gap-2 text-sm font-bold">
-          <Camera className="w-4 h-4 text-primary" /> Hand Control
-        </div>
-        <button onClick={onClose}><X className="w-4 h-4 text-muted-foreground hover:text-foreground" /></button>
-      </div>
-      <div className="p-3 space-y-2">
-        <div className="relative aspect-video bg-black rounded overflow-hidden">
-          <video ref={videoRef} className="hidden" muted playsInline />
-          <canvas ref={canvasRef} className="absolute inset-0 w-full h-full object-cover" />
-          {hoveredSq && (
-            <div className="absolute bottom-1 left-1 bg-black/80 text-white text-xs font-bold px-2 py-1 rounded-md">
-              {hoveredSq.toUpperCase()}
-              {dwellPct > 0 && <span className="ml-1 text-indigo-300">{Math.round(dwellPct)}%</span>}
+    <div className="shrink-0 bg-black border-t border-border overflow-hidden" style={{ height: 200 }}>
+      <div className="relative w-full h-full">
+        <video ref={videoRef} className="hidden" muted playsInline />
+        <canvas ref={canvasRef} className="w-full h-full object-cover" />
+        {/* HAND TRACK badge */}
+        {trackingActive !== false && (
+          <div className="absolute top-2 right-2 bg-green-500/90 text-black text-[10px] font-bold px-2 py-0.5 rounded">
+            HAND TRACK
+          </div>
+        )}
+        {/* Status overlay */}
+        <div className="absolute bottom-0 left-0 right-0 bg-black/60 px-3 py-1.5 flex items-center justify-between">
+          <span className="text-[10px] text-muted-foreground">{status}</span>
+          {dwellPct > 0 && (
+            <div className="flex items-center gap-1.5">
+              <div className="w-20 h-1 bg-white/20 rounded-full overflow-hidden">
+                <div className="h-full bg-indigo-400 transition-all duration-100" style={{ width: `${dwellPct}%` }} />
+              </div>
+              <span className="text-[10px] text-indigo-300">{Math.round(dwellPct)}%</span>
             </div>
           )}
         </div>
-        {dwellPct > 0 && (
-          <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-            <div className="h-full bg-primary transition-all duration-100" style={{ width: `${dwellPct}%` }} />
-          </div>
-        )}
-        <p className="text-xs text-muted-foreground text-center">{status}</p>
-        <p className="text-[10px] text-muted-foreground/60 text-center">
-          Point your index finger · grid = board · hold 1.5s to select
-        </p>
       </div>
     </div>
   );
@@ -384,6 +383,9 @@ export default function MultiplayerGamePage() {
   const [voiceActive, setVoiceActive] = useState(false);
   const [voiceTranscript, setVoiceTranscript] = useState("");
   const [cameraOpen, setCameraOpen] = useState(false);
+  const [handActive, setHandActive] = useState(false);
+  const [mouseActive, setMouseActive] = useState(true);
+  const [hoveredSqFromCamera, setHoveredSqFromCamera] = useState<string | null>(null);
   const [showChat, setShowChat] = useState(false);
   const [showMoves, setShowMoves] = useState(false);
   const [voiceSelection, setVoiceSelection] = useState<string | null>(null);
@@ -592,6 +594,8 @@ export default function MultiplayerGamePage() {
   const iWon = gameOver && ((gameOver.winner === "white" && game.whitePlayerId === user?.id) || (gameOver.winner === "black" && game.blackPlayerId === user?.id));
   const isDraw = gameOver?.winner === "draw";
 
+  const showCameraSection = cameraOpen || handActive;
+
   return (
     <div className="flex-1 flex flex-col min-h-0 overflow-hidden relative">
 
@@ -629,106 +633,207 @@ export default function MultiplayerGamePage() {
       )}
 
       {/* ── Top bar: opponent ── */}
-      <div className="h-14 shrink-0 flex items-center px-3 gap-3 bg-card border-b border-border">
-        <button onClick={() => setLocation("/lobby")} className="text-muted-foreground hover:text-foreground transition-colors mr-1">
+      <div className="h-12 shrink-0 flex items-center px-3 gap-3 bg-card border-b border-border">
+        <button onClick={() => setLocation("/lobby")} className="text-muted-foreground hover:text-foreground transition-colors">
           <ArrowLeft className="w-5 h-5" />
         </button>
-        <div
-          className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm text-white shrink-0"
-          style={{ background: opponentProfile?.avatarColor || "#64748b" }}
-        >
+        <div className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs text-white shrink-0"
+          style={{ background: opponentProfile?.avatarColor || "#64748b" }}>
           {(opponentProfile?.nickname || opponentLabel).charAt(0).toUpperCase()}
         </div>
         <div className="flex-1 min-w-0">
-          <div className="font-bold text-sm truncate">
-            {opponentProfile?.nickname || `Opponent`}
-            <span className="font-normal text-muted-foreground ml-1">({opponentLabel})</span>
+          <div className="font-semibold text-sm truncate leading-tight">
+            {opponentProfile?.nickname || "Opponent"}
           </div>
-          {opponentProfile?.country && <div className="text-xs text-muted-foreground">{opponentProfile.country}</div>}
-          {!isMyTurn && !gameOver && !opponentProfile?.country && <div className="text-xs text-muted-foreground">Thinking…</div>}
+          <div className="text-[10px] text-muted-foreground leading-tight">
+            {!isMyTurn && !gameOver ? "Thinking…" : opponentLabel + " pieces"}
+          </div>
         </div>
-        <div className="text-sm shrink-0">{myColor === "w" ? (game.capturedPieces?.black || []).join("") : (game.capturedPieces?.white || []).join("")}</div>
+        <div className="text-xs shrink-0 text-muted-foreground">
+          {myColor === "w" ? (game.capturedPieces?.black || []).join("") : (game.capturedPieces?.white || []).join("")}
+        </div>
+        {/* Extra actions: chat, moves, resign */}
+        <div className="flex items-center gap-0.5">
+          <button onClick={() => { setShowChat(v => !v); setUnreadChat(0); }} className={`p-1.5 rounded-lg transition-colors relative ${showChat ? "text-primary" : "text-muted-foreground hover:text-foreground"}`}>
+            <MessageSquare className="w-4 h-4" />
+            {unreadChat > 0 && <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 bg-red-500 text-white text-[8px] rounded-full flex items-center justify-center">{unreadChat}</span>}
+          </button>
+          <button onClick={() => setShowMoves(v => !v)} className={`p-1.5 rounded-lg transition-colors ${showMoves ? "text-primary" : "text-muted-foreground hover:text-foreground"}`}>
+            <List className="w-4 h-4" />
+          </button>
+          {!gameOver && (
+            resignConfirm ? (
+              <>
+                <button onClick={handleResign} className="px-2 py-0.5 text-[10px] bg-destructive text-destructive-foreground rounded font-medium ml-1">Confirm?</button>
+                <button onClick={() => setResignConfirm(false)} className="p-1 text-muted-foreground"><X className="w-3.5 h-3.5" /></button>
+              </>
+            ) : (
+              <>
+                <button onClick={handleResign} className="p-1.5 text-destructive/70 hover:text-destructive transition-colors" title="Resign"><Flag className="w-4 h-4" /></button>
+                <button onClick={() => { if (!drawOfferSent) { socket?.emit("offerDraw", { gameId: id, userId: user?.id }); setDrawOfferSent(true); toast({ title: "Draw offered" }); } }}
+                  disabled={drawOfferSent} className="p-1.5 text-muted-foreground hover:text-foreground disabled:opacity-30 transition-colors" title="Offer draw">
+                  <Handshake className="w-4 h-4" />
+                </button>
+              </>
+            )
+          )}
+        </div>
       </div>
 
       {/* ── Board ── */}
       <div ref={boardContainerRef} className="flex-1 min-h-0 flex items-center justify-center p-1 bg-background">
         <div className="h-full aspect-square max-w-full">
-          <MultiplayerBoard fen={fen} onMove={handleMove} isPlayerTurn={isMyTurn} flipped={flipped} lastMove={lastMove} theme={theme} />
+          <MultiplayerBoard
+            fen={fen}
+            onMove={mouseActive ? handleMove : () => {}}
+            isPlayerTurn={isMyTurn && mouseActive}
+            flipped={flipped}
+            lastMove={lastMove}
+            theme={theme}
+          />
         </div>
       </div>
 
-      {/* ── Voice transcript ── */}
+      {/* ── Voice transcript bar ── */}
       {voiceActive && voiceTranscript && (
-        <div className="shrink-0 bg-primary/10 border-t border-primary/20 px-4 py-1.5 flex items-center gap-2 text-sm text-primary">
-          <Mic className="w-3 h-3 animate-pulse shrink-0" /><span className="italic truncate">"{voiceTranscript}"</span>
+        <div className="shrink-0 bg-primary/10 border-t border-primary/20 px-4 py-1 flex items-center gap-2 text-xs text-primary">
+          <Mic className="w-3 h-3 animate-pulse shrink-0" />
+          <span className="italic truncate">"{voiceTranscript}"</span>
         </div>
       )}
       {voiceSelection && (
-        <div className="shrink-0 bg-orange-500/10 border-t border-orange-500/20 px-4 py-1.5 flex items-center gap-2 text-sm text-orange-400">
-          <Camera className="w-3 h-3 shrink-0" /><span>Selected: <strong>{voiceSelection.toUpperCase()}</strong> — hover destination</span>
+        <div className="shrink-0 bg-orange-500/10 border-t border-orange-500/20 px-4 py-1 flex items-center gap-2 text-xs text-orange-400">
+          <Hand className="w-3 h-3 shrink-0" />
+          <span>Selected: <strong>{voiceSelection.toUpperCase()}</strong> — hover destination square</span>
         </div>
       )}
 
-      {/* ── Bottom bar: me + controls ── */}
-      <div className="shrink-0 bg-card border-t border-border">
-        <div className="h-14 flex items-center px-3 gap-3">
-          <div className="w-9 h-9 bg-primary/20 text-primary rounded-full flex items-center justify-center font-bold text-sm shrink-0">
+      {/* ── Controls: my info + 3 pill buttons + live sync ── */}
+      <div className="shrink-0 bg-card border-t border-border px-3 pt-2.5 pb-2">
+        {/* Player row */}
+        <div className="flex items-center gap-2.5 mb-2.5">
+          <div className="w-9 h-9 rounded-full bg-primary/20 text-primary flex items-center justify-center font-bold text-sm shrink-0">
             {(user?.username || "Y").charAt(0).toUpperCase()}
           </div>
           <div className="flex-1 min-w-0">
-            <div className="font-bold text-sm truncate">{user?.username} ({myLabel})</div>
+            <div className="font-bold text-sm leading-tight truncate">{user?.username || "You"}</div>
+            <div className="text-[11px] text-muted-foreground leading-tight">{myLabel} Pieces</div>
           </div>
-          <div className="text-sm shrink-0">{myColor === "w" ? (game.capturedPieces?.white || []).join("") : (game.capturedPieces?.black || []).join("")}</div>
-          {isMyTurn && <Badge variant="default" className="shrink-0 text-xs animate-pulse">Your turn</Badge>}
-
-          {/* Action buttons */}
-          {!gameOver && (
-            <div className="flex items-center gap-1">
-              {resignConfirm ? (
-                <>
-                  <button onClick={handleResign} className="px-2 py-1 text-xs bg-destructive text-destructive-foreground rounded font-medium">Confirm</button>
-                  <button onClick={() => setResignConfirm(false)} className="p-2 rounded-lg hover:bg-muted"><X className="w-4 h-4" /></button>
-                </>
-              ) : (
-                <>
-                  <button onClick={handleResign} className="p-2 rounded-lg hover:bg-muted text-destructive transition-colors" title="Resign"><Flag className="w-4 h-4" /></button>
-                  <button onClick={() => { if (!drawOfferSent) { socket?.emit("offerDraw", { gameId: id, userId: user?.id }); setDrawOfferSent(true); toast({ title: "Draw offered" }); } }}
-                    disabled={drawOfferSent} className="p-2 rounded-lg hover:bg-muted disabled:opacity-40 transition-colors" title="Offer draw">
-                    <Handshake className="w-4 h-4" />
-                  </button>
-                  <button onClick={toggleVoice} className={`p-2 rounded-lg transition-colors ${voiceActive ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`} title="Voice">
-                    {voiceActive ? <Mic className="w-4 h-4" /> : <MicOff className="w-4 h-4" />}
-                  </button>
-                  <button onClick={() => setCameraOpen(v => !v)} className={`p-2 rounded-lg transition-colors ${cameraOpen ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`} title="Hand camera">
-                    {cameraOpen ? <Video className="w-4 h-4" /> : <VideoOff className="w-4 h-4" />}
-                  </button>
-                </>
-              )}
-              <button onClick={() => { setShowChat(v => !v); setUnreadChat(0); }} className={`p-2 rounded-lg transition-colors relative ${showChat ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`} title="Chat">
-                <MessageSquare className="w-4 h-4" />
-                {unreadChat > 0 && <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-red-500 text-white text-[9px] rounded-full flex items-center justify-center">{unreadChat}</span>}
-              </button>
-              <button onClick={() => setShowMoves(v => !v)} className={`p-2 rounded-lg transition-colors ${showMoves ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`} title="Move list">
-                <List className="w-4 h-4" />
-              </button>
-            </div>
+          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+            {myColor === "w" ? (game.capturedPieces?.white || []).join("") : (game.capturedPieces?.black || []).join("")}
+          </div>
+          {isMyTurn && !gameOver && (
+            <Badge variant="default" className="text-[10px] px-1.5 py-0 animate-pulse shrink-0">Your turn</Badge>
           )}
+        </div>
+
+        {/* Three pill buttons */}
+        <div className="flex gap-2 flex-wrap">
+          {/* Mouse toggle */}
+          <button
+            onClick={() => setMouseActive(v => !v)}
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-medium border transition-colors ${
+              mouseActive
+                ? "bg-primary/15 border-primary/40 text-primary"
+                : "bg-muted/50 border-border text-muted-foreground"
+            }`}
+          >
+            <Mouse className="w-3 h-3" />
+            Mouse {mouseActive ? "Active" : "Inactive"}
+          </button>
+
+          {/* Camera toggle */}
+          <button
+            onClick={() => setCameraOpen(v => !v)}
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-medium border transition-colors ${
+              cameraOpen
+                ? "bg-primary/15 border-primary/40 text-primary"
+                : "bg-muted/50 border-border text-muted-foreground"
+            }`}
+          >
+            <Camera className="w-3 h-3" />
+            Camera {cameraOpen ? "ON" : "OFF"}
+          </button>
+
+          {/* Hand toggle */}
+          <button
+            onClick={() => {
+              setHandActive(v => {
+                const next = !v;
+                if (next) setCameraOpen(true);
+                return next;
+              });
+              setVoiceSelection(null);
+            }}
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-medium border transition-colors ${
+              handActive
+                ? "bg-primary/15 border-primary/40 text-primary"
+                : "bg-muted/50 border-border text-muted-foreground"
+            }`}
+          >
+            <Hand className="w-3 h-3" />
+            Hand {handActive ? "Active" : "Inactive"}
+          </button>
+
+          {/* Voice toggle */}
+          <button
+            onClick={toggleVoice}
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-medium border transition-colors ${
+              voiceActive
+                ? "bg-primary/15 border-primary/40 text-primary"
+                : "bg-muted/50 border-border text-muted-foreground"
+            }`}
+          >
+            {voiceActive ? <Mic className="w-3 h-3 animate-pulse" /> : <MicOff className="w-3 h-3" />}
+            Voice {voiceActive ? "Active" : "OFF"}
+          </button>
+        </div>
+
+        {/* Live sync indicator */}
+        <div className="flex items-center gap-1.5 mt-2">
+          <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" />
+          <span className="text-[10px] text-green-400 font-medium">Live Sync</span>
         </div>
       </div>
 
-      {/* ── Camera overlay ── */}
-      {cameraOpen && (
-        <CameraOverlay
-          onClose={() => { setCameraOpen(false); setVoiceSelection(null); }}
-          boardRef={boardContainerRef}
-          onSquareSelect={handleCameraSquare}
-          flipped={flipped}
-        />
+      {/* ── Inline camera / hand section ── */}
+      {showCameraSection && (
+        <>
+          <CameraOverlay
+            onSquareSelect={handleCameraSquare}
+            flipped={flipped}
+            trackingActive={handActive}
+            onHoverChange={setHoveredSqFromCamera}
+          />
+          {/* HOVER + LAST MOVE bar */}
+          <div className="shrink-0 bg-[#111] border-t border-border/40 px-3 py-1.5 flex items-center justify-between">
+            <div className="flex items-center gap-3 text-[10px]">
+              {hoveredSqFromCamera ? (
+                <span className="text-white/60">
+                  HOVER <span className="text-white font-bold">{hoveredSqFromCamera.toUpperCase()}</span>
+                </span>
+              ) : (
+                <span className="text-white/30">HOVER —</span>
+              )}
+              {lastMove && (
+                <span className="text-white/60">
+                  LAST MOVE <span className="text-white font-mono">{lastMove.from}{lastMove.to}</span>
+                </span>
+              )}
+            </div>
+            <button
+              onClick={() => { setCameraOpen(false); setHandActive(false); setVoiceSelection(null); }}
+              className="text-white/30 hover:text-white/60 transition-colors"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </>
       )}
 
       {/* ── Move list overlay ── */}
       {showMoves && (
-        <div className="absolute bottom-[57px] right-16 w-56 max-h-72 bg-card border border-border rounded-tl-xl shadow-2xl flex flex-col z-30">
+        <div className="absolute top-12 right-0 w-56 max-h-72 bg-card border border-border shadow-2xl flex flex-col z-30">
           <div className="flex items-center justify-between px-3 py-2 border-b border-border shrink-0">
             <span className="text-sm font-bold">Moves</span>
             <button onClick={() => setShowMoves(false)}><X className="w-4 h-4 text-muted-foreground" /></button>
@@ -749,7 +854,7 @@ export default function MultiplayerGamePage() {
 
       {/* ── Chat overlay ── */}
       {showChat && (
-        <div className="absolute bottom-[57px] right-0 w-72 max-h-80 bg-card border border-border rounded-tl-xl shadow-2xl flex flex-col z-30">
+        <div className="absolute top-12 right-0 w-72 max-h-80 bg-card border border-border shadow-2xl flex flex-col z-30">
           <div className="flex items-center justify-between px-3 py-2 border-b border-border shrink-0">
             <span className="text-sm font-bold">Chat</span>
             <button onClick={() => setShowChat(false)}><X className="w-4 h-4 text-muted-foreground" /></button>
