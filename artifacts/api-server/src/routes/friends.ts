@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { eq, and, or, inArray } from "drizzle-orm";
+import { eq, and, or, inArray, ilike } from "drizzle-orm";
 import { db, friendRequestsTable, usersTable, chessGamesTable } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
 import { getSocketServer } from "../lib/socket-server";
@@ -161,7 +161,7 @@ router.post("/friends/request", requireAuth, async (req, res) => {
 
 router.post("/friends/accept/:requestId", requireAuth, async (req, res) => {
   const userId = (req as any).userId as string;
-  const { requestId } = req.params;
+  const requestId = req.params.requestId as string;
 
   try {
     const [request] = await db
@@ -194,7 +194,7 @@ router.post("/friends/accept/:requestId", requireAuth, async (req, res) => {
 
 router.post("/friends/decline/:requestId", requireAuth, async (req, res) => {
   const userId = (req as any).userId as string;
-  const { requestId } = req.params;
+  const requestId = req.params.requestId as string;
 
   try {
     const [request] = await db
@@ -221,7 +221,7 @@ router.post("/friends/decline/:requestId", requireAuth, async (req, res) => {
 
 router.delete("/friends/:friendUserId", requireAuth, async (req, res) => {
   const userId = (req as any).userId as string;
-  const { friendUserId } = req.params;
+  const friendUserId = req.params.friendUserId as string;
 
   try {
     await db
@@ -339,7 +339,7 @@ router.post("/friends/invite/decline", requireAuth, async (req, res) => {
 
 router.post("/challenge/:toUserId", requireAuth, async (req, res) => {
   const userId = (req as any).userId as string;
-  const { toUserId } = req.params;
+  const toUserId = req.params.toUserId as string;
 
   if (!toUserId || toUserId === userId) {
     res.status(400).json({ error: "validation_error", message: "Invalid target user" });
