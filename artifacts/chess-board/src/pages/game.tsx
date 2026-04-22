@@ -3,10 +3,11 @@ import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Chess } from "chess.js";
-import { Flag, RotateCcw, Mic, MicOff, Bot, List, X, ArrowLeft, Settings2 } from "lucide-react";
+import { Flag, RotateCcw, Mic, MicOff, Bot, List, X, ArrowLeft, Camera } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import { usePreferences, type BoardTheme } from "@/hooks/use-preferences";
+import { DraggableCameraPopup } from "@/components/camera-overlay";
 import {
   Select,
   SelectContent,
@@ -49,6 +50,15 @@ function ChessBoard({
   const [selected, setSelected] = useState<string | null>(null);
   const [legalTargets, setLegalTargets] = useState<string[]>([]);
   const [promo, setPromo] = useState<{ from: string; to: string } | null>(null);
+
+  const [hoveredSq, setHoveredSq] = useState<string | null>(null);
+
+  const getCursor = (sq: string, square: any) => {
+    if (disabled || promo) return "cursor-default";
+    if (selected && legalTargets.includes(sq)) return "cursor-pointer";
+    if (square && square.color === chess.turn()) return "cursor-grab";
+    return "cursor-default";
+  };
 
   const handleClick = (sq: string) => {
     if (disabled || promo) return;
@@ -100,21 +110,22 @@ function ChessBoard({
               const lm = lastMove && (lastMove.from === sq || lastMove.to === sq);
               const pk = square ? (square.color === "w" ? square.type.toUpperCase() : square.type) : null;
               const bgColor = sel ? theme.highlight : lm && !sel ? (light ? theme.lmLight : theme.lmDark) : (light ? theme.light : theme.dark);
+              const hovered = hoveredSq === sq;
               return (
-                <div key={j} onClick={() => handleClick(sq)}
-                  className={`flex-1 flex items-center justify-center cursor-pointer relative select-none transition-all duration-150
-                    ${tgt && !square ? "after:absolute after:inset-[32%] after:rounded-full after:pointer-events-none" : ""}
-                    ${tgt && square ? "ring-[3px] ring-inset" : ""}`}
-                  style={{
-                    background: bgColor,
-                    ...(tgt && !square ? { "--tw-after-bg": theme.dotColor } as any : {}),
-                    ...(tgt && square ? { "--tw-ring-color": theme.ringColor } as any : {}),
-                  }}>
+                <div key={j}
+                  onClick={() => handleClick(sq)}
+                  onMouseEnter={() => setHoveredSq(sq)}
+                  onMouseLeave={() => setHoveredSq(null)}
+                  className={`flex-1 flex items-center justify-center relative select-none transition-all duration-150 ${getCursor(sq, square)}`}
+                  style={{ background: bgColor }}>
                   {tgt && !square && (
                     <div className="absolute inset-[32%] rounded-full pointer-events-none" style={{ background: theme.dotColor }} />
                   )}
                   {tgt && square && (
                     <div className="absolute inset-0 rounded-none pointer-events-none" style={{ boxShadow: `inset 0 0 0 3px ${theme.ringColor}` }} />
+                  )}
+                  {hovered && !sel && !tgt && !disabled && square && square.color === chess.turn() && (
+                    <div className="absolute inset-0 pointer-events-none" style={{ background: "rgba(255,255,255,0.07)" }} />
                   )}
                   {square && (
                     <span className={`text-[clamp(1.2rem,4vw,3.5rem)] leading-none drop-shadow-md select-none
@@ -177,6 +188,10 @@ export default function GamePage() {
   const [voiceActive, setVoiceActive] = useState(false);
   const [voiceTranscript, setVoiceTranscript] = useState("");
   const [showMoves, setShowMoves] = useState(false);
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const [handActive, setHandActive] = useState(true);
+  const [hoveredSqFromCamera, setHoveredSqFromCamera] = useState<string | null>(null);
+  const [cameraSelection, setCameraSelection] = useState<string | null>(null);
 
   const recognitionRef = useRef<any>(null);
   const handleMoveRef = useRef<((from: string, to: string) => void) | null>(null);
@@ -252,6 +267,17 @@ export default function GamePage() {
 
   // Keep ref in sync so voice always calls the latest handleMove
   useEffect(() => { handleMoveRef.current = handleMove; }, [handleMove]);
+
+  const handleCameraSquare = useCallback((sq: string) => {
+    if (cameraSelection) {
+      handleMoveRef.current?.(cameraSelection, sq);
+      setCameraSelection(null);
+      toast({ title: `${cameraSelection.toUpperCase()} → ${sq.toUpperCase()}` });
+    } else {
+      setCameraSelection(sq);
+      toast({ title: `${sq.toUpperCase()} selected`, description: "Point at destination square" });
+    }
+  }, [cameraSelection, toast]);
 
   const toggleVoice = () => {
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -431,6 +457,10 @@ export default function GamePage() {
                   className={`p-2 rounded-lg transition-colors ${voiceActive ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`} title="Voice">
                   {voiceActive ? <Mic className="w-4 h-4" /> : <MicOff className="w-4 h-4" />}
                 </button>
+                <button onClick={() => setCameraOpen(v => !v)}
+                  className={`p-2 rounded-lg transition-colors ${cameraOpen ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`} title="Hand camera">
+                  <Camera className="w-4 h-4" />
+                </button>
               </>
             )}
             <button onClick={() => setShowMoves(v => !v)}
@@ -443,6 +473,18 @@ export default function GamePage() {
           </div>
         </div>
       </div>
+
+      {/* ── Camera popup ── */}
+      {cameraOpen && (
+        <DraggableCameraPopup
+          onSquareSelect={handleCameraSquare}
+          flipped={false}
+          handActive={handActive}
+          onHoverChange={setHoveredSqFromCamera}
+          onClose={() => setCameraOpen(false)}
+          hoveredSq={hoveredSqFromCamera}
+        />
+      )}
 
       {/* ── Move list overlay ── */}
       {showMoves && (
