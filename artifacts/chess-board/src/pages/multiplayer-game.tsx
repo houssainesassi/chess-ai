@@ -298,10 +298,14 @@ function CameraOverlay({ onSquareSelect, flipped, trackingActive, onHoverChange 
         setStatus("Point at the grid to select squares");
 
         const loop = async () => {
-          if (handsRef.current && video.readyState >= 2) {
-            await handsRef.current.send({ image: video });
+          try {
+            if (handsRef.current && video.readyState >= 2) {
+              await handsRef.current.send({ image: video });
+            }
+          } catch {
+            // WASM aborted or camera frame issue — skip frame silently
           }
-          requestAnimationFrame(loop);
+          if (handsRef.current) requestAnimationFrame(loop);
         };
         loop();
       })
