@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Chess } from "chess.js";
 import {
   ArrowLeft, Flag, Send, Handshake, Mic, MicOff,
-  Camera, X, Trophy, Minus, Video, VideoOff, MessageSquare, List, Mouse, Hand,
+  Camera, X, Trophy, Minus, MessageSquare, List, Mouse, Hand, GripHorizontal,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { io, Socket } from "socket.io-client";
@@ -316,28 +316,126 @@ function CameraOverlay({ onSquareSelect, flipped, trackingActive, onHoverChange 
   }, [mpLoaded, sqFromNorm, onSquareSelect]);
 
   return (
-    <div className="shrink-0 bg-black border-t border-border overflow-hidden" style={{ height: 200 }}>
-      <div className="relative w-full h-full">
-        <video ref={videoRef} className="hidden" muted playsInline />
-        <canvas ref={canvasRef} className="w-full h-full object-cover" />
-        {/* HAND TRACK badge */}
-        {trackingActive !== false && (
-          <div className="absolute top-2 right-2 bg-green-500/90 text-black text-[10px] font-bold px-2 py-0.5 rounded">
-            HAND TRACK
+    <div className="relative w-full bg-black" style={{ height: 200 }}>
+      <video ref={videoRef} className="hidden" muted playsInline />
+      <canvas ref={canvasRef} className="w-full h-full object-cover" />
+      {trackingActive !== false && (
+        <div className="absolute top-2 right-2 bg-green-500/90 text-black text-[10px] font-bold px-2 py-0.5 rounded">
+          HAND TRACK
+        </div>
+      )}
+      <div className="absolute bottom-0 left-0 right-0 bg-black/60 px-3 py-1.5 flex items-center justify-between">
+        <span className="text-[10px] text-white/50">{status}</span>
+        {dwellPct > 0 && (
+          <div className="flex items-center gap-1.5">
+            <div className="w-20 h-1 bg-white/20 rounded-full overflow-hidden">
+              <div className="h-full bg-indigo-400 transition-all duration-100" style={{ width: `${dwellPct}%` }} />
+            </div>
+            <span className="text-[10px] text-indigo-300">{Math.round(dwellPct)}%</span>
           </div>
         )}
-        {/* Status overlay */}
-        <div className="absolute bottom-0 left-0 right-0 bg-black/60 px-3 py-1.5 flex items-center justify-between">
-          <span className="text-[10px] text-muted-foreground">{status}</span>
-          {dwellPct > 0 && (
-            <div className="flex items-center gap-1.5">
-              <div className="w-20 h-1 bg-white/20 rounded-full overflow-hidden">
-                <div className="h-full bg-indigo-400 transition-all duration-100" style={{ width: `${dwellPct}%` }} />
-              </div>
-              <span className="text-[10px] text-indigo-300">{Math.round(dwellPct)}%</span>
-            </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Draggable camera popup ────────────────────────────────────────────────────
+
+function DraggableCameraPopup({
+  onSquareSelect,
+  flipped,
+  handActive,
+  onHoverChange,
+  onClose,
+  hoveredSq,
+}: {
+  onSquareSelect: (sq: string) => void;
+  flipped: boolean;
+  handActive: boolean;
+  onHoverChange: (sq: string | null) => void;
+  onClose: () => void;
+  hoveredSq: string | null;
+}) {
+  const [pos, setPos] = useState(() => ({
+    x: typeof window !== "undefined" ? Math.max(0, window.innerWidth - 310) : 40,
+    y: 80,
+  }));
+  const dragging = useRef(false);
+  const offset = useRef({ x: 0, y: 0 });
+
+  useEffect(() => {
+    const onMouseMove = (e: MouseEvent) => {
+      if (!dragging.current) return;
+      setPos({
+        x: Math.max(0, Math.min(window.innerWidth - 288, e.clientX - offset.current.x)),
+        y: Math.max(0, Math.min(window.innerHeight - 260, e.clientY - offset.current.y)),
+      });
+    };
+    const onMouseUp = () => { dragging.current = false; };
+    const onTouchMove = (e: TouchEvent) => {
+      if (!dragging.current) return;
+      e.preventDefault();
+      const t = e.touches[0];
+      setPos({
+        x: Math.max(0, Math.min(window.innerWidth - 288, t.clientX - offset.current.x)),
+        y: Math.max(0, Math.min(window.innerHeight - 260, t.clientY - offset.current.y)),
+      });
+    };
+    const onTouchEnd = () => { dragging.current = false; };
+    document.addEventListener("mousemove", onMouseMove);
+    document.addEventListener("mouseup", onMouseUp);
+    document.addEventListener("touchmove", onTouchMove, { passive: false });
+    document.addEventListener("touchend", onTouchEnd);
+    return () => {
+      document.removeEventListener("mousemove", onMouseMove);
+      document.removeEventListener("mouseup", onMouseUp);
+      document.removeEventListener("touchmove", onTouchMove);
+      document.removeEventListener("touchend", onTouchEnd);
+    };
+  }, []);
+
+  const startDrag = (clientX: number, clientY: number) => {
+    dragging.current = true;
+    offset.current = { x: clientX - pos.x, y: clientY - pos.y };
+  };
+
+  return (
+    <div
+      className="fixed z-50 rounded-xl overflow-hidden shadow-2xl border border-white/10 bg-[#1a1a1a] select-none"
+      style={{ left: pos.x, top: pos.y, width: 288 }}
+    >
+      <div
+        className="flex items-center justify-between px-3 py-2 bg-[#2a2a2a] cursor-grab active:cursor-grabbing"
+        onMouseDown={e => { startDrag(e.clientX, e.clientY); e.preventDefault(); }}
+        onTouchStart={e => { const t = e.touches[0]; startDrag(t.clientX, t.clientY); }}
+      >
+        <div className="flex items-center gap-2">
+          <Camera className="w-3.5 h-3.5 text-white/60" />
+          <span className="text-xs font-semibold text-white/80">Hand Camera</span>
+          {handActive && (
+            <span className="bg-green-500/20 text-green-400 text-[9px] font-bold px-1.5 py-0.5 rounded">LIVE</span>
           )}
         </div>
+        <div className="flex items-center gap-1.5 text-white/40">
+          <GripHorizontal className="w-3.5 h-3.5" />
+          <button onClick={onClose} className="hover:text-white/80 transition-colors ml-0.5">
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </div>
+      <CameraOverlay
+        onSquareSelect={onSquareSelect}
+        flipped={flipped}
+        trackingActive={handActive}
+        onHoverChange={onHoverChange}
+      />
+      <div className="px-3 py-1.5 bg-black/80 flex items-center justify-between text-[10px]">
+        {hoveredSq ? (
+          <span className="text-white/50">HOVER <span className="text-white font-bold">{hoveredSq.toUpperCase()}</span></span>
+        ) : (
+          <span className="text-white/30">HOVER —</span>
+        )}
+        <span className="text-white/20 italic">drag to move</span>
       </div>
     </div>
   );
@@ -596,19 +694,58 @@ export default function MultiplayerGamePage() {
 
   const showCameraSection = cameraOpen || handActive;
 
+  // Helper: player bar component
+  const PlayerBar = ({ isMe }: { isMe: boolean }) => {
+    const name = isMe ? (user?.username || "You") : (opponentProfile?.nickname || "Opponent");
+    const label = isMe ? myLabel : opponentLabel;
+    const avatarColor = isMe ? undefined : opponentProfile?.avatarColor;
+    const captures = isMe
+      ? (myColor === "w" ? game.capturedPieces?.white : game.capturedPieces?.black) || []
+      : (myColor === "w" ? game.capturedPieces?.black : game.capturedPieces?.white) || [];
+    const thinking = !isMe && !isMyTurn && !gameOver;
+
+    return (
+      <div className="flex items-center gap-3 w-full py-2">
+        <div
+          className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm text-white shrink-0 ${isMe ? "bg-primary/70" : ""}`}
+          style={!isMe ? { background: avatarColor || "#64748b" } : {}}
+        >
+          {name.charAt(0).toUpperCase()}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="font-semibold text-sm leading-tight truncate text-foreground">
+            {name}
+          </div>
+          <div className="text-[11px] text-muted-foreground leading-tight flex items-center gap-1.5">
+            {label} Pieces
+            {thinking && <span className="text-yellow-400 animate-pulse">• Thinking…</span>}
+          </div>
+        </div>
+        <div className="text-xs text-muted-foreground font-mono shrink-0">
+          {captures.join("")}
+        </div>
+        {isMe && isMyTurn && !gameOver && (
+          <span className="shrink-0 text-[10px] bg-green-500 text-black font-bold px-2 py-0.5 rounded-full animate-pulse">
+            Your turn
+          </span>
+        )}
+      </div>
+    );
+  };
+
   return (
-    <div className="flex-1 flex flex-col min-h-0 overflow-hidden relative">
+    <div className="flex-1 flex min-h-0 overflow-hidden bg-[#262421]">
 
       {/* ── Game over modal ── */}
       {gameOver && (
-        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center backdrop-blur-sm">
-          <div className="bg-card border border-border rounded-2xl p-8 flex flex-col items-center gap-5 shadow-2xl max-w-sm w-full mx-4 animate-in fade-in zoom-in duration-300">
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center backdrop-blur-sm">
+          <div className="bg-[#2c2c2c] border border-white/10 rounded-2xl p-8 flex flex-col items-center gap-5 shadow-2xl max-w-sm w-full mx-4 animate-in fade-in zoom-in duration-300">
             <div className={`w-20 h-20 rounded-full flex items-center justify-center ${iWon ? "bg-yellow-500/20" : isDraw ? "bg-blue-500/20" : "bg-red-500/20"}`}>
-              {iWon ? <Trophy className="w-10 h-10 text-yellow-500" /> : isDraw ? <Minus className="w-10 h-10 text-blue-500" /> : <Flag className="w-10 h-10 text-red-500" />}
+              {iWon ? <Trophy className="w-10 h-10 text-yellow-400" /> : isDraw ? <Minus className="w-10 h-10 text-blue-400" /> : <Flag className="w-10 h-10 text-red-400" />}
             </div>
-            <div className="text-center space-y-1">
-              <h2 className="text-2xl font-bold">{iWon ? "You Won!" : isDraw ? "Draw!" : "You Lost"}</h2>
-              <p className="text-muted-foreground text-sm">{gameOver.reason}</p>
+            <div className="text-center">
+              <h2 className="text-2xl font-bold text-white">{iWon ? "You Won!" : isDraw ? "Draw!" : "You Lost"}</h2>
+              <p className="text-white/50 text-sm mt-1">{gameOver.reason}</p>
             </div>
             <div className="flex gap-3 w-full">
               <Button className="flex-1" onClick={() => setLocation("/lobby")}><ArrowLeft className="w-4 h-4 mr-2" /> Lobby</Button>
@@ -620,10 +757,10 @@ export default function MultiplayerGamePage() {
 
       {/* ── Draw offer dialog ── */}
       {drawOfferedByOpponent && !gameOver && (
-        <div className="fixed inset-0 z-40 bg-black/50 flex items-center justify-center backdrop-blur-sm">
-          <div className="bg-card border border-border rounded-xl p-6 flex flex-col items-center gap-4 shadow-xl max-w-xs w-full mx-4 animate-in fade-in zoom-in duration-200">
+        <div className="fixed inset-0 z-40 bg-black/60 flex items-center justify-center backdrop-blur-sm">
+          <div className="bg-[#2c2c2c] border border-white/10 rounded-xl p-6 flex flex-col items-center gap-4 shadow-xl max-w-xs w-full mx-4 animate-in fade-in zoom-in duration-200">
             <Handshake className="w-10 h-10 text-blue-400" />
-            <div className="text-center"><h3 className="font-bold text-lg">Draw Offered</h3><p className="text-sm text-muted-foreground">Accept?</p></div>
+            <div className="text-center"><h3 className="font-bold text-lg text-white">Draw Offered</h3><p className="text-sm text-white/50">Accept?</p></div>
             <div className="flex gap-3 w-full">
               <Button className="flex-1" onClick={() => { socket?.emit("acceptDraw", { gameId: id }); setDrawOfferedByOpponent(false); }}>Accept</Button>
               <Button variant="outline" className="flex-1" onClick={() => { socket?.emit("declineDraw", { gameId: id }); setDrawOfferedByOpponent(false); }}>Decline</Button>
@@ -632,57 +769,33 @@ export default function MultiplayerGamePage() {
         </div>
       )}
 
-      {/* ── Top bar: opponent ── */}
-      <div className="h-12 shrink-0 flex items-center px-3 gap-3 bg-card border-b border-border">
-        <button onClick={() => setLocation("/lobby")} className="text-muted-foreground hover:text-foreground transition-colors">
-          <ArrowLeft className="w-5 h-5" />
-        </button>
-        <div className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs text-white shrink-0"
-          style={{ background: opponentProfile?.avatarColor || "#64748b" }}>
-          {(opponentProfile?.nickname || opponentLabel).charAt(0).toUpperCase()}
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="font-semibold text-sm truncate leading-tight">
-            {opponentProfile?.nickname || "Opponent"}
-          </div>
-          <div className="text-[10px] text-muted-foreground leading-tight">
-            {!isMyTurn && !gameOver ? "Thinking…" : opponentLabel + " pieces"}
-          </div>
-        </div>
-        <div className="text-xs shrink-0 text-muted-foreground">
-          {myColor === "w" ? (game.capturedPieces?.black || []).join("") : (game.capturedPieces?.white || []).join("")}
-        </div>
-        {/* Extra actions: chat, moves, resign */}
-        <div className="flex items-center gap-0.5">
-          <button onClick={() => { setShowChat(v => !v); setUnreadChat(0); }} className={`p-1.5 rounded-lg transition-colors relative ${showChat ? "text-primary" : "text-muted-foreground hover:text-foreground"}`}>
-            <MessageSquare className="w-4 h-4" />
-            {unreadChat > 0 && <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 bg-red-500 text-white text-[8px] rounded-full flex items-center justify-center">{unreadChat}</span>}
-          </button>
-          <button onClick={() => setShowMoves(v => !v)} className={`p-1.5 rounded-lg transition-colors ${showMoves ? "text-primary" : "text-muted-foreground hover:text-foreground"}`}>
-            <List className="w-4 h-4" />
-          </button>
-          {!gameOver && (
-            resignConfirm ? (
-              <>
-                <button onClick={handleResign} className="px-2 py-0.5 text-[10px] bg-destructive text-destructive-foreground rounded font-medium ml-1">Confirm?</button>
-                <button onClick={() => setResignConfirm(false)} className="p-1 text-muted-foreground"><X className="w-3.5 h-3.5" /></button>
-              </>
-            ) : (
-              <>
-                <button onClick={handleResign} className="p-1.5 text-destructive/70 hover:text-destructive transition-colors" title="Resign"><Flag className="w-4 h-4" /></button>
-                <button onClick={() => { if (!drawOfferSent) { socket?.emit("offerDraw", { gameId: id, userId: user?.id }); setDrawOfferSent(true); toast({ title: "Draw offered" }); } }}
-                  disabled={drawOfferSent} className="p-1.5 text-muted-foreground hover:text-foreground disabled:opacity-30 transition-colors" title="Offer draw">
-                  <Handshake className="w-4 h-4" />
-                </button>
-              </>
-            )
-          )}
-        </div>
-      </div>
+      {/* ── Board column (main area) ── */}
+      <div className="flex-1 flex flex-col items-center justify-center min-h-0 min-w-0 px-2 py-2 lg:px-4 lg:py-3">
 
-      {/* ── Board ── */}
-      <div ref={boardContainerRef} className="flex-1 min-h-0 flex items-center justify-center p-1 bg-background">
-        <div className="h-full aspect-square max-w-full">
+        {/* Back button — sits above board column */}
+        <div className="w-full flex items-center gap-2 mb-1" style={{ maxWidth: "min(100%, calc(100vh - 260px))" }}>
+          <button onClick={() => setLocation("/lobby")} className="text-white/40 hover:text-white/80 transition-colors flex items-center gap-1.5 text-xs">
+            <ArrowLeft className="w-4 h-4" /> Back to lobby
+          </button>
+          <div className="flex-1" />
+          {/* Live sync */}
+          <div className="flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" />
+            <span className="text-[10px] text-green-400 font-medium">Live</span>
+          </div>
+        </div>
+
+        {/* Opponent bar */}
+        <div className="w-full" style={{ maxWidth: "min(100%, calc(100vh - 260px))" }}>
+          <PlayerBar isMe={false} />
+        </div>
+
+        {/* Board */}
+        <div
+          ref={boardContainerRef}
+          className="w-full shrink-0"
+          style={{ maxWidth: "min(100%, calc(100vh - 260px))", aspectRatio: "1" }}
+        >
           <MultiplayerBoard
             fen={fen}
             onMove={mouseActive ? handleMove : () => {}}
@@ -692,190 +805,190 @@ export default function MultiplayerGamePage() {
             theme={theme}
           />
         </div>
+
+        {/* My bar */}
+        <div className="w-full" style={{ maxWidth: "min(100%, calc(100vh - 260px))" }}>
+          <PlayerBar isMe={true} />
+        </div>
+
+        {/* ── Controls toolbar ── */}
+        <div className="w-full shrink-0" style={{ maxWidth: "min(100%, calc(100vh - 260px))" }}>
+          {/* Voice transcript */}
+          {voiceActive && voiceTranscript && (
+            <div className="flex items-center gap-2 text-xs text-primary mb-1.5 px-1">
+              <Mic className="w-3 h-3 animate-pulse shrink-0" />
+              <span className="italic truncate">"{voiceTranscript}"</span>
+            </div>
+          )}
+          {voiceSelection && (
+            <div className="flex items-center gap-2 text-xs text-orange-400 mb-1.5 px-1">
+              <Hand className="w-3 h-3 shrink-0" />
+              <span>Selected: <strong>{voiceSelection.toUpperCase()}</strong> — hover destination</span>
+            </div>
+          )}
+
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {/* Pill toggles */}
+            {[
+              { label: mouseActive ? "Mouse" : "Mouse", icon: <Mouse className="w-3 h-3" />, active: mouseActive, onClick: () => setMouseActive(v => !v) },
+              { label: "Camera", icon: <Camera className="w-3 h-3" />, active: cameraOpen, onClick: () => setCameraOpen(v => !v) },
+              { label: "Hand", icon: <Hand className="w-3 h-3" />, active: handActive, onClick: () => { setHandActive(v => { const n = !v; if (n) setCameraOpen(true); return n; }); setVoiceSelection(null); } },
+              { label: "Voice", icon: voiceActive ? <Mic className="w-3 h-3 animate-pulse" /> : <MicOff className="w-3 h-3" />, active: voiceActive, onClick: toggleVoice },
+            ].map(({ label, icon, active, onClick }) => (
+              <button
+                key={label}
+                onClick={onClick}
+                className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-medium border transition-all ${
+                  active
+                    ? "bg-[#81b64c]/20 border-[#81b64c]/60 text-[#81b64c]"
+                    : "bg-white/5 border-white/10 text-white/40 hover:text-white/60 hover:border-white/20"
+                }`}
+              >
+                {icon} {label} {active ? "ON" : "OFF"}
+              </button>
+            ))}
+
+            <div className="flex-1" />
+
+            {/* Icon actions */}
+            {!gameOver && (
+              <>
+                {resignConfirm ? (
+                  <>
+                    <button onClick={handleResign} className="px-2 py-1 text-[10px] bg-red-600 text-white rounded font-medium">Confirm?</button>
+                    <button onClick={() => setResignConfirm(false)} className="p-1.5 text-white/40 hover:text-white/70"><X className="w-3.5 h-3.5" /></button>
+                  </>
+                ) : (
+                  <>
+                    <button onClick={handleResign} className="p-1.5 text-white/30 hover:text-red-400 transition-colors" title="Resign"><Flag className="w-4 h-4" /></button>
+                    <button onClick={() => { if (!drawOfferSent) { socket?.emit("offerDraw", { gameId: id, userId: user?.id }); setDrawOfferSent(true); toast({ title: "Draw offered" }); } }}
+                      disabled={drawOfferSent} className="p-1.5 text-white/30 hover:text-white/70 disabled:opacity-20 transition-colors" title="Offer draw">
+                      <Handshake className="w-4 h-4" />
+                    </button>
+                  </>
+                )}
+              </>
+            )}
+          </div>
+        </div>
       </div>
 
-      {/* ── Voice transcript bar ── */}
-      {voiceActive && voiceTranscript && (
-        <div className="shrink-0 bg-primary/10 border-t border-primary/20 px-4 py-1 flex items-center gap-2 text-xs text-primary">
-          <Mic className="w-3 h-3 animate-pulse shrink-0" />
-          <span className="italic truncate">"{voiceTranscript}"</span>
+      {/* ── Desktop sidebar ── */}
+      <aside className="hidden lg:flex w-60 xl:w-72 flex-col border-l border-white/5 bg-[#1f1d1a] shrink-0">
+        {/* Move list */}
+        <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/5 shrink-0">
+          <span className="text-xs font-semibold text-white/60 uppercase tracking-widest">Moves</span>
+          <button onClick={() => setShowMoves(v => !v)} className={`text-white/30 hover:text-white/60 transition-colors ${showMoves ? "text-white/60" : ""}`}>
+            <List className="w-3.5 h-3.5" />
+          </button>
         </div>
-      )}
-      {voiceSelection && (
-        <div className="shrink-0 bg-orange-500/10 border-t border-orange-500/20 px-4 py-1 flex items-center gap-2 text-xs text-orange-400">
-          <Hand className="w-3 h-3 shrink-0" />
-          <span>Selected: <strong>{voiceSelection.toUpperCase()}</strong> — hover destination square</span>
-        </div>
-      )}
-
-      {/* ── Controls: my info + 3 pill buttons + live sync ── */}
-      <div className="shrink-0 bg-card border-t border-border px-3 pt-2.5 pb-2">
-        {/* Player row */}
-        <div className="flex items-center gap-2.5 mb-2.5">
-          <div className="w-9 h-9 rounded-full bg-primary/20 text-primary flex items-center justify-center font-bold text-sm shrink-0">
-            {(user?.username || "Y").charAt(0).toUpperCase()}
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="font-bold text-sm leading-tight truncate">{user?.username || "You"}</div>
-            <div className="text-[11px] text-muted-foreground leading-tight">{myLabel} Pieces</div>
-          </div>
-          <div className="flex items-center gap-1 text-xs text-muted-foreground">
-            {myColor === "w" ? (game.capturedPieces?.white || []).join("") : (game.capturedPieces?.black || []).join("")}
-          </div>
-          {isMyTurn && !gameOver && (
-            <Badge variant="default" className="text-[10px] px-1.5 py-0 animate-pulse shrink-0">Your turn</Badge>
+        <div className="flex-1 overflow-auto p-2 text-xs font-mono" ref={moveListRef}>
+          {moveHistory.length === 0 ? (
+            <div className="text-white/20 text-center py-6">No moves yet</div>
+          ) : (
+            Array.from({ length: Math.ceil(moveHistory.length / 2) }).map((_, i) => (
+              <div key={i} className="flex gap-1 px-2 py-0.5 hover:bg-white/5 rounded">
+                <span className="w-6 text-white/30 text-right shrink-0">{i + 1}.</span>
+                <span className="flex-1 text-white/80">{moveHistory[i * 2]?.san}</span>
+                <span className="flex-1 text-white/50">{moveHistory[i * 2 + 1]?.san || ""}</span>
+              </div>
+            ))
           )}
         </div>
 
-        {/* Three pill buttons */}
-        <div className="flex gap-2 flex-wrap">
-          {/* Mouse toggle */}
-          <button
-            onClick={() => setMouseActive(v => !v)}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-medium border transition-colors ${
-              mouseActive
-                ? "bg-primary/15 border-primary/40 text-primary"
-                : "bg-muted/50 border-border text-muted-foreground"
-            }`}
-          >
-            <Mouse className="w-3 h-3" />
-            Mouse {mouseActive ? "Active" : "Inactive"}
-          </button>
-
-          {/* Camera toggle */}
-          <button
-            onClick={() => setCameraOpen(v => !v)}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-medium border transition-colors ${
-              cameraOpen
-                ? "bg-primary/15 border-primary/40 text-primary"
-                : "bg-muted/50 border-border text-muted-foreground"
-            }`}
-          >
-            <Camera className="w-3 h-3" />
-            Camera {cameraOpen ? "ON" : "OFF"}
-          </button>
-
-          {/* Hand toggle */}
-          <button
-            onClick={() => {
-              setHandActive(v => {
-                const next = !v;
-                if (next) setCameraOpen(true);
-                return next;
-              });
-              setVoiceSelection(null);
-            }}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-medium border transition-colors ${
-              handActive
-                ? "bg-primary/15 border-primary/40 text-primary"
-                : "bg-muted/50 border-border text-muted-foreground"
-            }`}
-          >
-            <Hand className="w-3 h-3" />
-            Hand {handActive ? "Active" : "Inactive"}
-          </button>
-
-          {/* Voice toggle */}
-          <button
-            onClick={toggleVoice}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-medium border transition-colors ${
-              voiceActive
-                ? "bg-primary/15 border-primary/40 text-primary"
-                : "bg-muted/50 border-border text-muted-foreground"
-            }`}
-          >
-            {voiceActive ? <Mic className="w-3 h-3 animate-pulse" /> : <MicOff className="w-3 h-3" />}
-            Voice {voiceActive ? "Active" : "OFF"}
-          </button>
-        </div>
-
-        {/* Live sync indicator */}
-        <div className="flex items-center gap-1.5 mt-2">
-          <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" />
-          <span className="text-[10px] text-green-400 font-medium">Live Sync</span>
-        </div>
-      </div>
-
-      {/* ── Inline camera / hand section ── */}
-      {showCameraSection && (
-        <>
-          <CameraOverlay
-            onSquareSelect={handleCameraSquare}
-            flipped={flipped}
-            trackingActive={handActive}
-            onHoverChange={setHoveredSqFromCamera}
-          />
-          {/* HOVER + LAST MOVE bar */}
-          <div className="shrink-0 bg-[#111] border-t border-border/40 px-3 py-1.5 flex items-center justify-between">
-            <div className="flex items-center gap-3 text-[10px]">
-              {hoveredSqFromCamera ? (
-                <span className="text-white/60">
-                  HOVER <span className="text-white font-bold">{hoveredSqFromCamera.toUpperCase()}</span>
-                </span>
-              ) : (
-                <span className="text-white/30">HOVER —</span>
-              )}
-              {lastMove && (
-                <span className="text-white/60">
-                  LAST MOVE <span className="text-white font-mono">{lastMove.from}{lastMove.to}</span>
-                </span>
-              )}
-            </div>
-            <button
-              onClick={() => { setCameraOpen(false); setHandActive(false); setVoiceSelection(null); }}
-              className="text-white/30 hover:text-white/60 transition-colors"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
+        {/* Chat */}
+        <div className="border-t border-white/5 shrink-0">
+          <div className="flex items-center justify-between px-4 py-2 border-b border-white/5">
+            <span className="text-xs font-semibold text-white/60 uppercase tracking-widest">Chat</span>
+            {unreadChat > 0 && <span className="w-4 h-4 bg-red-500 text-white text-[9px] rounded-full flex items-center justify-center">{unreadChat}</span>}
           </div>
-        </>
-      )}
+          <div className="max-h-36 overflow-auto p-2 space-y-1">
+            {messages.length === 0 && <div className="text-xs text-white/20 text-center py-2">No messages</div>}
+            {messages.map((msg, i) => (
+              <div key={i} className={`flex flex-col ${msg.sender === user?.username ? "items-end" : "items-start"}`}>
+                <span className="text-[9px] text-white/30">{msg.sender}</span>
+                <div className={`px-2 py-1 rounded text-[11px] max-w-[90%] break-words ${msg.sender === user?.username ? "bg-[#81b64c]/80 text-black" : "bg-white/10 text-white/80"}`}>{msg.text}</div>
+              </div>
+            ))}
+            <div ref={chatEndRef} />
+          </div>
+          <div className="p-2">
+            <form onSubmit={sendChat} className="flex gap-1.5">
+              <Input value={chatMsg} onChange={e => setChatMsg(e.target.value)} placeholder="Message…" className="flex-1 text-xs h-7 bg-white/5 border-white/10 text-white placeholder:text-white/20" />
+              <Button type="submit" size="icon" className="h-7 w-7 shrink-0 bg-[#81b64c] hover:bg-[#81b64c]/80"><Send className="w-3 h-3 text-black" /></Button>
+            </form>
+          </div>
+        </div>
+      </aside>
 
-      {/* ── Move list overlay ── */}
+      {/* ── Mobile: chat + moves sheets (slide up) ── */}
       {showMoves && (
-        <div className="absolute top-12 right-0 w-56 max-h-72 bg-card border border-border shadow-2xl flex flex-col z-30">
-          <div className="flex items-center justify-between px-3 py-2 border-b border-border shrink-0">
-            <span className="text-sm font-bold">Moves</span>
-            <button onClick={() => setShowMoves(false)}><X className="w-4 h-4 text-muted-foreground" /></button>
+        <div className="fixed bottom-0 inset-x-0 z-40 lg:hidden bg-[#1f1d1a] border-t border-white/10 max-h-60 flex flex-col">
+          <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/10 shrink-0">
+            <span className="text-xs font-semibold text-white/60">Moves</span>
+            <button onClick={() => setShowMoves(false)}><X className="w-4 h-4 text-white/40" /></button>
           </div>
           <div className="overflow-auto p-2 text-xs font-mono" ref={moveListRef}>
-            {moveHistory.length === 0 ? <div className="text-muted-foreground text-center py-3">No moves yet</div> : (
+            {moveHistory.length === 0 ? <div className="text-white/20 text-center py-3">No moves yet</div> : (
               Array.from({ length: Math.ceil(moveHistory.length / 2) }).map((_, i) => (
-                <div key={i} className="flex gap-1 px-1 py-0.5 hover:bg-muted/50 rounded">
-                  <span className="w-6 text-muted-foreground text-right shrink-0">{i+1}.</span>
-                  <span className="flex-1 font-medium">{moveHistory[i*2]?.san}</span>
-                  <span className="flex-1 text-muted-foreground">{moveHistory[i*2+1]?.san || ""}</span>
+                <div key={i} className="flex gap-1 px-2 py-0.5 hover:bg-white/5 rounded">
+                  <span className="w-6 text-white/30 text-right shrink-0">{i + 1}.</span>
+                  <span className="flex-1 text-white/80">{moveHistory[i * 2]?.san}</span>
+                  <span className="flex-1 text-white/50">{moveHistory[i * 2 + 1]?.san || ""}</span>
                 </div>
               ))
             )}
           </div>
         </div>
       )}
-
-      {/* ── Chat overlay ── */}
       {showChat && (
-        <div className="absolute top-12 right-0 w-72 max-h-80 bg-card border border-border shadow-2xl flex flex-col z-30">
-          <div className="flex items-center justify-between px-3 py-2 border-b border-border shrink-0">
-            <span className="text-sm font-bold">Chat</span>
-            <button onClick={() => setShowChat(false)}><X className="w-4 h-4 text-muted-foreground" /></button>
+        <div className="fixed bottom-0 inset-x-0 z-40 lg:hidden bg-[#1f1d1a] border-t border-white/10 flex flex-col" style={{ maxHeight: 260 }}>
+          <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/10 shrink-0">
+            <span className="text-xs font-semibold text-white/60">Chat</span>
+            <button onClick={() => setShowChat(false)}><X className="w-4 h-4 text-white/40" /></button>
           </div>
           <div className="flex-1 overflow-auto p-2 space-y-1.5">
-            {messages.length === 0 && <div className="text-xs text-muted-foreground text-center py-4">No messages yet</div>}
+            {messages.length === 0 && <div className="text-xs text-white/20 text-center py-4">No messages</div>}
             {messages.map((msg, i) => (
               <div key={i} className={`flex flex-col ${msg.sender === user?.username ? "items-end" : "items-start"}`}>
-                <span className="text-[10px] text-muted-foreground">{msg.sender}</span>
-                <div className={`px-2 py-1 rounded text-xs max-w-[90%] break-words ${msg.sender === user?.username ? "bg-primary text-primary-foreground" : "bg-muted"}`}>{msg.text}</div>
+                <span className="text-[10px] text-white/30">{msg.sender}</span>
+                <div className={`px-2 py-1 rounded text-xs max-w-[90%] break-words ${msg.sender === user?.username ? "bg-[#81b64c]/80 text-black" : "bg-white/10 text-white/80"}`}>{msg.text}</div>
               </div>
             ))}
             <div ref={chatEndRef} />
           </div>
-          <div className="p-2 border-t border-border shrink-0">
+          <div className="p-2 border-t border-white/10 shrink-0">
             <form onSubmit={sendChat} className="flex gap-1.5">
-              <Input value={chatMsg} onChange={e => setChatMsg(e.target.value)} placeholder="Message..." className="flex-1 text-xs h-8" />
-              <Button type="submit" size="icon" className="h-8 w-8 shrink-0"><Send className="w-3 h-3" /></Button>
+              <Input value={chatMsg} onChange={e => setChatMsg(e.target.value)} placeholder="Message…" className="flex-1 text-xs h-8 bg-white/5 border-white/10 text-white placeholder:text-white/20" />
+              <Button type="submit" size="icon" className="h-8 w-8 shrink-0 bg-[#81b64c] hover:bg-[#81b64c]/80"><Send className="w-3 h-3 text-black" /></Button>
             </form>
           </div>
         </div>
+      )}
+
+      {/* Mobile chat/moves toggle buttons — bottom right */}
+      <div className="fixed bottom-4 right-4 flex flex-col gap-2 z-30 lg:hidden">
+        <button onClick={() => { setShowChat(v => !v); setUnreadChat(0); setShowMoves(false); }}
+          className={`w-10 h-10 rounded-full flex items-center justify-center shadow-lg border transition-colors relative ${showChat ? "bg-[#81b64c] border-[#81b64c] text-black" : "bg-[#2c2c2c] border-white/10 text-white/50 hover:text-white/80"}`}>
+          <MessageSquare className="w-4 h-4" />
+          {unreadChat > 0 && <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[9px] rounded-full flex items-center justify-center">{unreadChat}</span>}
+        </button>
+        <button onClick={() => { setShowMoves(v => !v); setShowChat(false); }}
+          className={`w-10 h-10 rounded-full flex items-center justify-center shadow-lg border transition-colors ${showMoves ? "bg-[#81b64c] border-[#81b64c] text-black" : "bg-[#2c2c2c] border-white/10 text-white/50 hover:text-white/80"}`}>
+          <List className="w-4 h-4" />
+        </button>
+      </div>
+
+      {/* ── Draggable camera popup ── */}
+      {showCameraSection && (
+        <DraggableCameraPopup
+          onSquareSelect={handleCameraSquare}
+          flipped={flipped}
+          handActive={handActive}
+          onHoverChange={setHoveredSqFromCamera}
+          onClose={() => { setCameraOpen(false); setHandActive(false); setVoiceSelection(null); }}
+          hoveredSq={hoveredSqFromCamera}
+        />
       )}
     </div>
   );
