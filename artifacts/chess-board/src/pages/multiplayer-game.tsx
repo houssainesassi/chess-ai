@@ -123,10 +123,11 @@ function MultiplayerBoard({
 
 // ── Camera (MediaPipe) ────────────────────────────────────────────────────────
 
-function CameraOverlay({ onClose, boardRef, onSquareSelect }: {
+function CameraOverlay({ onClose, onSquareSelect, flipped }: {
   onClose: () => void;
   boardRef: React.RefObject<HTMLDivElement | null>;
   onSquareSelect: (sq: string) => void;
+  flipped: boolean;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -137,6 +138,21 @@ function CameraOverlay({ onClose, boardRef, onSquareSelect }: {
   const [hoveredSq, setHoveredSq] = useState<string | null>(null);
   const [dwellPct, setDwellPct] = useState(0);
   const [mpLoaded, setMpLoaded] = useState(false);
+
+  // Map normalized (0-1) finger coords to a chess square.
+  // The camera feed acts as a virtual board overlay:
+  // top-left of the camera = top-left of the board as viewed by the player.
+  // Cameras are typically mirrored, so we flip x to make pointing feel natural.
+  const sqFromNorm = useCallback((nx: number, ny: number): string => {
+    // Mirror x because webcam shows a mirrored view
+    const mx = 1 - nx;
+    // When board is flipped (playing as black), reverse both axes
+    const fx = flipped ? 1 - mx : mx;
+    const fy = flipped ? 1 - ny : ny;
+    const fileIdx = Math.min(7, Math.max(0, Math.floor(fx * 8)));
+    const rankIdx = Math.min(7, Math.max(0, Math.floor(fy * 8)));
+    return `${String.fromCharCode(97 + fileIdx)}${8 - rankIdx}`;
+  }, [flipped]);
 
   useEffect(() => {
     const scripts = [
@@ -149,81 +165,180 @@ function CameraOverlay({ onClose, boardRef, onSquareSelect }: {
       if (document.querySelector(`script[src="${src}"]`)) { loaded++; if (loaded === scripts.length) setMpLoaded(true); return; }
       const s = document.createElement("script"); s.src = src; s.crossOrigin = "anonymous";
       s.onload = () => { loaded++; if (loaded === scripts.length) setMpLoaded(true); };
-      s.onerror = () => setStatus("Failed to load hand tracking"); document.head.appendChild(s);
+      s.onerror = () => setStatus("Failed to load hand tracking library");
+      document.head.appendChild(s);
     });
   }, []);
-
-  const sqFromPoint = useCallback((x: number, y: number) => {
-    const board = boardRef.current; if (!board) return null;
-    const rect = board.getBoundingClientRect();
-    const rx = (x - rect.left) / rect.width; const ry = (y - rect.top) / rect.height;
-    if (rx < 0 || rx > 1 || ry < 0 || ry > 1) return null;
-    return `${String.fromCharCode(97 + Math.floor(rx * 8))}${8 - Math.floor(ry * 8)}`;
-  }, [boardRef]);
 
   useEffect(() => {
     if (!mpLoaded) return;
     const w = window as any;
-    if (!w.Hands) { setStatus("Hands module unavailable"); return; }
-    const hands = new w.Hands({ locateFile: (f: string) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4/${f}` });
-    hands.setOptions({ maxNumHands: 1, modelComplexity: 0, minDetectionConfidence: 0.7, minTrackingConfidence: 0.5 });
-    hands.onResults((results: any) => {
-      const canvas = canvasRef.current; const video = videoRef.current;
-      if (!canvas || !video) return;
-      const ctx = canvas.getContext("2d"); if (!ctx) return;
-      canvas.width = video.videoWidth; canvas.height = video.videoHeight;
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      if (results.multiHandLandmarks?.length > 0) {
-        const lm = results.multiHandLandmarks[0]; const tip = lm[8];
-        const px = tip.x * canvas.width; const py = tip.y * canvas.height;
-        ctx.beginPath(); ctx.arc(px, py, 12, 0, Math.PI*2);
-        ctx.fillStyle = "rgba(99,102,241,0.7)"; ctx.fill();
-        ctx.strokeStyle = "white"; ctx.lineWidth = 2; ctx.stroke();
-        const sq = sqFromPoint(tip.x * window.innerWidth, tip.y * window.innerHeight);
-        setHoveredSq(sq);
-        if (sq) {
-          const now = Date.now();
-          if (dwellRef.current?.sq === sq) {
-            const elapsed = now - dwellRef.current.start;
-            const pct = Math.min(elapsed / 1500, 1); setDwellPct(pct * 100);
-            if (elapsed >= 1500) { onSquareSelect(sq); dwellRef.current = null; setDwellPct(0); }
-          } else { dwellRef.current = { sq, start: now }; setDwellPct(0); }
-        } else { dwellRef.current = null; setDwellPct(0); }
-        if (w.drawConnectors && w.drawLandmarks && w.HAND_CONNECTIONS) {
-          w.drawConnectors(ctx, lm, w.HAND_CONNECTIONS, { color: "#6366f1", lineWidth: 2 });
-          w.drawLandmarks(ctx, lm, { color: "#fff", lineWidth: 1, radius: 3 });
-        }
-        setStatus("✋ Hover a square for 1.5s to select");
-      } else { setStatus("Show your hand to the camera"); setHoveredSq(null); dwellRef.current = null; setDwellPct(0); }
+    if (!w.Hands) { setStatus("Hand tracking unavailable"); return; }
+
+    const hands = new w.Hands({
+      locateFile: (f: string) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4/${f}`,
     });
+    hands.setOptions({
+      maxNumHands: 1,
+      modelComplexity: 1,
+      minDetectionConfidence: 0.6,
+      minTrackingConfidence: 0.5,
+    });
+
+    hands.onResults((results: any) => {
+      const canvas = canvasRef.current;
+      const video = videoRef.current;
+      if (!canvas || !video) return;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+
+      const W = video.videoWidth || 320;
+      const H = video.videoHeight || 240;
+      canvas.width = W;
+      canvas.height = H;
+
+      // Draw mirrored video so the display feels like a mirror
+      ctx.save();
+      ctx.scale(-1, 1);
+      ctx.drawImage(video, -W, 0, W, H);
+      ctx.restore();
+
+      // Draw an 8x8 grid to help the user see the board mapping
+      ctx.strokeStyle = "rgba(255,255,255,0.15)";
+      ctx.lineWidth = 0.5;
+      for (let i = 1; i < 8; i++) {
+        ctx.beginPath(); ctx.moveTo((i / 8) * W, 0); ctx.lineTo((i / 8) * W, H); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(0, (i / 8) * H); ctx.lineTo(W, (i / 8) * H); ctx.stroke();
+      }
+
+      if (results.multiHandLandmarks?.length > 0) {
+        const lm = results.multiHandLandmarks[0];
+        const tip = lm[8]; // index finger tip
+
+        // Mirror x for display (since we drew the video mirrored)
+        const dispX = (1 - tip.x) * W;
+        const dispY = tip.y * H;
+
+        // Draw connection lines and landmarks (on mirrored display)
+        if (w.HAND_CONNECTIONS) {
+          ctx.strokeStyle = "#6366f1";
+          ctx.lineWidth = 2;
+          for (const [a, b] of w.HAND_CONNECTIONS) {
+            ctx.beginPath();
+            ctx.moveTo((1 - lm[a].x) * W, lm[a].y * H);
+            ctx.lineTo((1 - lm[b].x) * W, lm[b].y * H);
+            ctx.stroke();
+          }
+        }
+        lm.forEach((pt: any) => {
+          ctx.beginPath(); ctx.arc((1 - pt.x) * W, pt.y * H, 3, 0, Math.PI * 2);
+          ctx.fillStyle = "#fff"; ctx.fill();
+        });
+
+        // Highlight fingertip
+        ctx.beginPath(); ctx.arc(dispX, dispY, 14, 0, Math.PI * 2);
+        ctx.fillStyle = "rgba(99,102,241,0.6)"; ctx.fill();
+        ctx.strokeStyle = "white"; ctx.lineWidth = 2.5; ctx.stroke();
+
+        // Map to square using normalized coords (tip.x/tip.y are raw, not mirrored)
+        const sq = sqFromNorm(tip.x, tip.y);
+        setHoveredSq(sq);
+
+        // Highlight the hovered cell on the grid
+        const mx = 1 - tip.x; // mirrored x for display
+        const cellX = Math.min(7, Math.max(0, Math.floor(mx * 8)));
+        const cellY = Math.min(7, Math.max(0, Math.floor(tip.y * 8)));
+        ctx.fillStyle = "rgba(99,102,241,0.25)";
+        ctx.fillRect(cellX * (W / 8), cellY * (H / 8), W / 8, H / 8);
+
+        // Dwell logic
+        const now = Date.now();
+        if (dwellRef.current?.sq === sq) {
+          const elapsed = now - dwellRef.current.start;
+          const pct = Math.min(elapsed / 1500, 1);
+          setDwellPct(pct * 100);
+
+          // Draw circular dwell progress around fingertip
+          ctx.beginPath();
+          ctx.arc(dispX, dispY, 20, -Math.PI / 2, -Math.PI / 2 + pct * Math.PI * 2);
+          ctx.strokeStyle = "#a5b4fc"; ctx.lineWidth = 3; ctx.stroke();
+
+          if (elapsed >= 1500) {
+            onSquareSelect(sq);
+            dwellRef.current = null;
+            setDwellPct(0);
+          }
+        } else {
+          dwellRef.current = { sq, start: now };
+          setDwellPct(0);
+        }
+
+        setStatus("✋ Hold still over a square for 1.5s");
+      } else {
+        setStatus("Show your hand to the camera");
+        setHoveredSq(null);
+        dwellRef.current = null;
+        setDwellPct(0);
+      }
+    });
+
     handsRef.current = hands;
-    navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } })
+
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: "user", width: 320, height: 240 } })
       .then(stream => {
         streamRef.current = stream;
         const video = videoRef.current;
-        if (video) { video.srcObject = stream; video.play(); setStatus("Camera active");
-          const loop = async () => { if (handsRef.current && video.readyState >= 2) await handsRef.current.send({ image: video }); requestAnimationFrame(loop); };
-          loop();
-        }
-      }).catch(() => setStatus("Camera access denied"));
-    return () => { streamRef.current?.getTracks().forEach(t => t.stop()); handsRef.current = null; };
-  }, [mpLoaded, sqFromPoint, onSquareSelect]);
+        if (!video) return;
+        video.srcObject = stream;
+        video.play();
+        setStatus("Point at the grid to select squares");
+
+        const loop = async () => {
+          if (handsRef.current && video.readyState >= 2) {
+            await handsRef.current.send({ image: video });
+          }
+          requestAnimationFrame(loop);
+        };
+        loop();
+      })
+      .catch((err) => {
+        setStatus(err.name === "NotAllowedError" ? "Camera permission denied" : "Camera unavailable");
+      });
+
+    return () => {
+      streamRef.current?.getTracks().forEach(t => t.stop());
+      handsRef.current = null;
+    };
+  }, [mpLoaded, sqFromNorm, onSquareSelect]);
 
   return (
     <div className="absolute bottom-[57px] right-0 w-80 bg-card border border-border rounded-tl-xl shadow-2xl z-30 overflow-hidden">
       <div className="flex items-center justify-between p-3 border-b border-border">
-        <div className="flex items-center gap-2 text-sm font-bold"><Camera className="w-4 h-4 text-primary" /> Hand Control</div>
+        <div className="flex items-center gap-2 text-sm font-bold">
+          <Camera className="w-4 h-4 text-primary" /> Hand Control
+        </div>
         <button onClick={onClose}><X className="w-4 h-4 text-muted-foreground hover:text-foreground" /></button>
       </div>
       <div className="p-3 space-y-2">
         <div className="relative aspect-video bg-black rounded overflow-hidden">
-          <video ref={videoRef} className="absolute inset-0 w-full h-full object-cover" muted playsInline />
+          <video ref={videoRef} className="hidden" muted playsInline />
           <canvas ref={canvasRef} className="absolute inset-0 w-full h-full object-cover" />
-          {hoveredSq && <div className="absolute bottom-1 left-1 bg-black/70 text-white text-[10px] px-1.5 py-0.5 rounded">{hoveredSq.toUpperCase()} {dwellPct > 0 ? `${Math.round(dwellPct)}%` : ""}</div>}
+          {hoveredSq && (
+            <div className="absolute bottom-1 left-1 bg-black/80 text-white text-xs font-bold px-2 py-1 rounded-md">
+              {hoveredSq.toUpperCase()}
+              {dwellPct > 0 && <span className="ml-1 text-indigo-300">{Math.round(dwellPct)}%</span>}
+            </div>
+          )}
         </div>
-        {dwellPct > 0 && <div className="h-1.5 bg-muted rounded-full overflow-hidden"><div className="h-full bg-primary transition-all" style={{ width: `${dwellPct}%` }} /></div>}
+        {dwellPct > 0 && (
+          <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+            <div className="h-full bg-primary transition-all duration-100" style={{ width: `${dwellPct}%` }} />
+          </div>
+        )}
         <p className="text-xs text-muted-foreground text-center">{status}</p>
+        <p className="text-[10px] text-muted-foreground/60 text-center">
+          Point your index finger · grid = board · hold 1.5s to select
+        </p>
       </div>
     </div>
   );
@@ -231,9 +346,19 @@ function CameraOverlay({ onClose, boardRef, onSquareSelect }: {
 
 // ── Voice ─────────────────────────────────────────────────────────────────────
 
-function parseVoice(text: string) {
-  const m = text.toLowerCase().match(/([a-h][1-8])\s+(?:to\s+)?([a-h][1-8])/);
-  return m ? { from: m[1], to: m[2] } : null;
+function parseVoice(text: string): { from: string; to: string } | null {
+  const t = text.toLowerCase()
+    .replace(/\s+/g, " ")
+    .replace(/\bto\b/g, " ")
+    .replace(/\bmove\b/g, " ")
+    .replace(/\bfrom\b/g, " ")
+    .trim();
+  // Match two square names like "e2 e4", "e 2 e 4", "e2 to e4"
+  const m = t.match(/([a-h]\s*[1-8])[\s,]+([a-h]\s*[1-8])/);
+  if (!m) return null;
+  const from = m[1].replace(/\s/g, "");
+  const to = m[2].replace(/\s/g, "");
+  return { from, to };
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
@@ -265,6 +390,7 @@ export default function MultiplayerGamePage() {
   const [unreadChat, setUnreadChat] = useState(0);
 
   const recognitionRef = useRef<any>(null);
+  const handleMoveRef = useRef<((from: string, to: string, promotion?: string) => void) | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const boardContainerRef = useRef<HTMLDivElement>(null);
   const moveListRef = useRef<HTMLDivElement>(null);
@@ -363,18 +489,56 @@ export default function MultiplayerGamePage() {
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
   useEffect(() => { if (moveListRef.current) moveListRef.current.scrollTop = moveListRef.current.scrollHeight; }, [game?.moveHistory]);
 
+  // Keep ref in sync so voice callback always calls the latest handleMove
+  useEffect(() => { handleMoveRef.current = handleMove; }, [handleMove]);
+
   // ── Voice ────────────────────────────────────────────────────────────────────
   const toggleVoice = () => {
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SR) { toast({ title: "Voice not supported", variant: "destructive" }); return; }
-    if (voiceActive) { recognitionRef.current?.stop(); recognitionRef.current = null; setVoiceActive(false); setVoiceTranscript(""); return; }
-    const r = new SR(); r.continuous = true; r.interimResults = true; r.lang = "en-US";
+    if (!SR) {
+      toast({ title: "Voice control not supported", description: "Use Chrome or Edge for voice moves.", variant: "destructive" });
+      return;
+    }
+    if (voiceActive) {
+      recognitionRef.current?.stop();
+      recognitionRef.current = null;
+      setVoiceActive(false);
+      setVoiceTranscript("");
+      return;
+    }
+    const r = new SR();
+    r.continuous = true;
+    r.interimResults = true;
+    r.lang = "en-US";
     r.onresult = (e: any) => {
-      const last = e.results[e.results.length - 1]; const text = last[0].transcript; setVoiceTranscript(text);
-      if (last.isFinal) { setVoiceTranscript(""); const p = parseVoice(text); if (p) { handleMove(p.from, p.to); toast({ title: `Voice: ${p.from}→${p.to}` }); } }
+      const last = e.results[e.results.length - 1];
+      const text = last[0].transcript;
+      setVoiceTranscript(text);
+      if (last.isFinal) {
+        setVoiceTranscript("");
+        const p = parseVoice(text);
+        if (p) {
+          handleMoveRef.current?.(p.from, p.to);
+          toast({ title: `Voice move: ${p.from.toUpperCase()} → ${p.to.toUpperCase()}` });
+        }
+      }
     };
-    r.onerror = () => { setVoiceActive(false); recognitionRef.current = null; };
-    r.start(); recognitionRef.current = r; setVoiceActive(true);
+    r.onerror = (e: any) => {
+      const msg = e.error === "not-allowed" ? "Microphone permission denied" : "Voice error — try again";
+      toast({ title: msg, variant: "destructive" });
+      setVoiceActive(false);
+      recognitionRef.current = null;
+    };
+    r.onend = () => {
+      // Auto-restart if still supposed to be active
+      if (recognitionRef.current === r) {
+        try { r.start(); } catch (_) {}
+      }
+    };
+    r.start();
+    recognitionRef.current = r;
+    setVoiceActive(true);
+    toast({ title: "Voice active 🎙️", description: "Say \"e2 to e4\" to move" });
   };
   useEffect(() => () => { recognitionRef.current?.stop(); }, []);
 
@@ -558,6 +722,7 @@ export default function MultiplayerGamePage() {
           onClose={() => { setCameraOpen(false); setVoiceSelection(null); }}
           boardRef={boardContainerRef}
           onSquareSelect={handleCameraSquare}
+          flipped={flipped}
         />
       )}
 

@@ -136,9 +136,18 @@ function ChessBoard({
 
 // ── Voice ─────────────────────────────────────────────────────────────────────
 
-function parseVoice(text: string) {
-  const m = text.toLowerCase().match(/([a-h][1-8])\s+(?:to\s+)?([a-h][1-8])/);
-  return m ? { from: m[1], to: m[2] } : null;
+function parseVoice(text: string): { from: string; to: string } | null {
+  const t = text.toLowerCase()
+    .replace(/\s+/g, " ")
+    .replace(/\bto\b/g, " ")
+    .replace(/\bmove\b/g, " ")
+    .replace(/\bfrom\b/g, " ")
+    .trim();
+  const m = t.match(/([a-h]\s*[1-8])[\s,]+([a-h]\s*[1-8])/);
+  if (!m) return null;
+  const from = m[1].replace(/\s/g, "");
+  const to = m[2].replace(/\s/g, "");
+  return { from, to };
 }
 
 // ── API ───────────────────────────────────────────────────────────────────────
@@ -170,6 +179,7 @@ export default function GamePage() {
   const [showMoves, setShowMoves] = useState(false);
 
   const recognitionRef = useRef<any>(null);
+  const handleMoveRef = useRef<((from: string, to: string) => void) | null>(null);
   const moveListRef = useRef<HTMLDivElement>(null);
 
   const refresh = useCallback(async () => {
@@ -240,22 +250,54 @@ export default function GamePage() {
     } catch { toast({ title: "Failed to start", variant: "destructive" }); }
   };
 
+  // Keep ref in sync so voice always calls the latest handleMove
+  useEffect(() => { handleMoveRef.current = handleMove; }, [handleMove]);
+
   const toggleVoice = () => {
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SR) { toast({ title: "Voice not supported", variant: "destructive" }); return; }
-    if (voiceActive) { recognitionRef.current?.stop(); recognitionRef.current = null; setVoiceActive(false); setVoiceTranscript(""); return; }
-    const r = new SR(); r.continuous = true; r.interimResults = true; r.lang = "en-US";
+    if (!SR) {
+      toast({ title: "Voice control not supported", description: "Use Chrome or Edge for voice moves.", variant: "destructive" });
+      return;
+    }
+    if (voiceActive) {
+      recognitionRef.current?.stop();
+      recognitionRef.current = null;
+      setVoiceActive(false);
+      setVoiceTranscript("");
+      return;
+    }
+    const r = new SR();
+    r.continuous = true;
+    r.interimResults = true;
+    r.lang = "en-US";
     r.onresult = (e: any) => {
       const last = e.results[e.results.length - 1];
-      const text = last[0].transcript; setVoiceTranscript(text);
+      const text = last[0].transcript;
+      setVoiceTranscript(text);
       if (last.isFinal) {
         setVoiceTranscript("");
         const p = parseVoice(text);
-        if (p) { handleMove(p.from, p.to); toast({ title: `Voice: ${p.from}→${p.to}` }); }
+        if (p) {
+          handleMoveRef.current?.(p.from, p.to);
+          toast({ title: `Voice move: ${p.from.toUpperCase()} → ${p.to.toUpperCase()}` });
+        }
       }
     };
-    r.onerror = () => { setVoiceActive(false); recognitionRef.current = null; };
-    r.start(); recognitionRef.current = r; setVoiceActive(true);
+    r.onerror = (e: any) => {
+      const msg = e.error === "not-allowed" ? "Microphone permission denied" : "Voice error — try again";
+      toast({ title: msg, variant: "destructive" });
+      setVoiceActive(false);
+      recognitionRef.current = null;
+    };
+    r.onend = () => {
+      if (recognitionRef.current === r) {
+        try { r.start(); } catch (_) {}
+      }
+    };
+    r.start();
+    recognitionRef.current = r;
+    setVoiceActive(true);
+    toast({ title: "Voice active 🎙️", description: "Say \"e2 to e4\" to move" });
   };
   useEffect(() => () => { recognitionRef.current?.stop(); }, []);
 
