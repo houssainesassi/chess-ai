@@ -40,6 +40,14 @@ export default function LobbyPage() {
   const [matchedOpponent, setMatchedOpponent] = useState<{ nickname: string; avatarColor: string; country?: string } | null>(null);
   const matchmakingSocketRef = useRef<Socket | null>(null);
 
+  const notifSocketRef = useRef<Socket | null>(null);
+  const [pendingInvite, setPendingInvite] = useState<{
+    gameId: string;
+    fromUserId: string;
+    fromNickname: string;
+    fromAvatarColor: string;
+  } | null>(null);
+
   const fetchActiveGames = async () => {
     try {
       const res = await api.getActiveGames();
@@ -74,6 +82,29 @@ export default function LobbyPage() {
     const interval = setInterval(fetchActiveGames, 10_000);
     return () => clearInterval(interval);
   }, []);
+
+  // Persistent notification socket — listens for game invites
+  useEffect(() => {
+    if (!token || !user?.id) return;
+    const sock = io({ path: "/api/socket.io", auth: { token } });
+    notifSocketRef.current = sock;
+    sock.on("connect", () => {
+      sock.emit("registerUser", { userId: user.id });
+    });
+    sock.on("gameInvite", (data: { gameId: string; fromUserId: string; fromNickname: string; fromAvatarColor: string }) => {
+      setPendingInvite(data);
+    });
+    sock.on("gameInviteDeclined", ({ byNickname }: { byNickname: string }) => {
+      toast({ title: `${byNickname} declined your challenge` });
+    });
+    sock.on("gameStart", ({ gameId }: { gameId: string }) => {
+      setLocation(`/game/${gameId}`);
+    });
+    return () => {
+      sock.disconnect();
+      notifSocketRef.current = null;
+    };
+  }, [token, user?.id]);
 
   useEffect(() => {
     if (!searchQuery.trim() || searchQuery.length < 2) {
@@ -213,6 +244,27 @@ export default function LobbyPage() {
     }
   };
 
+  const acceptGameInvite = async () => {
+    if (!token || !pendingInvite) return;
+    const { gameId } = pendingInvite;
+    setPendingInvite(null);
+    try {
+      await api.joinGame(token, gameId);
+      setLocation(`/game/${gameId}`);
+    } catch (err: any) {
+      toast({ title: err.message || "Failed to join game", variant: "destructive" });
+    }
+  };
+
+  const declineGameInvite = async () => {
+    if (!token || !pendingInvite) return;
+    const { gameId } = pendingInvite;
+    setPendingInvite(null);
+    try {
+      await api.declineGameInvite(token, gameId);
+    } catch (_) {}
+  };
+
   const challengePlayer = async (targetUserId: string, isFriend: boolean) => {
     if (!token) return;
     try {
@@ -242,6 +294,34 @@ export default function LobbyPage() {
 
   return (
     <div className="p-4 md:p-8 max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+      {/* ── Game invite popup ── */}
+      {pendingInvite && (
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center backdrop-blur-sm">
+          <div className="bg-card border border-border rounded-2xl p-8 flex flex-col items-center gap-5 shadow-2xl max-w-sm w-full mx-4 animate-in fade-in zoom-in duration-300">
+            <div
+              className="w-20 h-20 rounded-full flex items-center justify-center text-3xl font-bold text-white shadow-lg"
+              style={{ background: pendingInvite.fromAvatarColor }}
+            >
+              {pendingInvite.fromNickname.charAt(0).toUpperCase()}
+            </div>
+            <div className="text-center space-y-1">
+              <h2 className="text-xl font-bold">Game Invite</h2>
+              <p className="text-muted-foreground text-sm">
+                <span className="font-semibold text-foreground">{pendingInvite.fromNickname}</span> challenged you to a game
+              </p>
+            </div>
+            <div className="flex gap-3 w-full">
+              <Button className="flex-1 bg-green-600 hover:bg-green-700 text-white" onClick={acceptGameInvite}>
+                <Check className="w-4 h-4 mr-2" /> Accept
+              </Button>
+              <Button variant="outline" className="flex-1" onClick={declineGameInvite}>
+                <X className="w-4 h-4 mr-2" /> Decline
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Matchmaking overlay */}
       {(isMatchmaking || matchedOpponent) && (

@@ -315,7 +315,11 @@ export function initSocketServer(httpServer: HttpServer): SocketIOServer {
             .set({ status: "completed", winner, updatedAt: new Date() })
             .where(and(eq(chessGamesTable.id, gameId), eq(chessGamesTable.status, "active")));
 
-          io?.to(`game:${gameId}`).emit("playerResigned", { resignedUserId: userId, winner });
+          io?.to(`game:${gameId}`).emit("gameEnd", {
+            reason: "quit",
+            winner,
+            loserUserId: userId,
+          });
           logger.info({ gameId, userId, winner }, "Player quit game");
 
           const timerKey = `${gameId}:${userId}`;

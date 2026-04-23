@@ -68,6 +68,12 @@ export const api = {
       token,
       body: JSON.stringify({ toUserId }),
     }),
+  declineGameInvite: (token: string, gameId: string) =>
+    req<{ success: boolean }>("/friends/invite/decline", {
+      method: "POST",
+      token,
+      body: JSON.stringify({ gameId }),
+    }),
 
   // Games
   getMyGames: (token: string) => req<{ games: Game[] }>("/my/games", { token }),

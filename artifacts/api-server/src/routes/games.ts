@@ -170,6 +170,7 @@ router.post("/games/:id/join", requireAuth, async (req, res) => {
     broadcastRoomUpdate(id, gameState);
 
     getSocketServer()?.to(`user:${game.whitePlayerId}`).emit("gameAccepted", { gameId: id });
+    getSocketServer()?.to(`user:${userId}`).emit("gameStart", { gameId: id });
 
     res.json({ ...updated, ...gameState });
   } catch (err) {

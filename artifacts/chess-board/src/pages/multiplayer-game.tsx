@@ -188,6 +188,10 @@ export default function MultiplayerGamePage() {
   const [opponentDisconnectedSecs, setOpponentDisconnectedSecs] = useState<number | null>(null);
   const disconnectCountdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Quit/lobby redirect countdown
+  const [quitRedirectSecs, setQuitRedirectSecs] = useState<number | null>(null);
+  const quitRedirectRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   const recognitionRef = useRef<any>(null);
   const handleMoveRef = useRef<((from: string, to: string, promotion?: string) => void) | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -298,6 +302,27 @@ export default function MultiplayerGamePage() {
       toast({ title: "Game paused", description: "Both players disconnected. Waiting for reconnection..." });
     });
 
+    // ── Quit → both auto-redirect to lobby ───────────────────────
+    sock.on("gameEnd", ({ reason, winner, loserUserId }: { reason: string; winner: string; loserUserId: string }) => {
+      const iQuit = loserUserId === user?.id;
+      setGameOver({
+        winner,
+        reason: iQuit ? "You left the game" : "Opponent quit the game",
+      });
+      setQuitRedirectSecs(3);
+    });
+
+    // ── Opponent accepted invite → reload game from waiting ──────
+    sock.on("gameAccepted", async ({ gameId }: { gameId: string }) => {
+      try {
+        const res = await fetch(`/api/games/${gameId}`, { headers: { Authorization: `Bearer ${token}` } });
+        if (res.ok) {
+          const data = await res.json();
+          setGame((prev: any) => prev ? { ...prev, ...data } : data);
+        }
+      } catch (_) {}
+    });
+
     setSocket(sock);
     return () => { sock.emit("leaveGame", { gameId: id }); sock.disconnect(); };
   }, [id, token, user?.id]);
@@ -314,6 +339,14 @@ export default function MultiplayerGamePage() {
       setGameOver({ winner: "draw", reason: game.isStalemate ? "Stalemate" : "Draw" });
     }
   }, [game?.isCheckmate, game?.isDraw, game?.isStalemate]);
+
+  // Auto-redirect countdown after quit
+  useEffect(() => {
+    if (quitRedirectSecs === null) return;
+    if (quitRedirectSecs <= 0) { setLocation("/lobby"); return; }
+    const t = setTimeout(() => setQuitRedirectSecs(s => (s ?? 1) - 1), 1000);
+    return () => clearTimeout(t);
+  }, [quitRedirectSecs]);
 
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
   useEffect(() => { if (moveListRef.current) moveListRef.current.scrollTop = moveListRef.current.scrollHeight; }, [game?.moveHistory]);
@@ -505,10 +538,17 @@ export default function MultiplayerGamePage() {
               <h2 className="text-2xl font-bold text-white">{iWon ? "You Won!" : isDraw ? "Draw!" : "You Lost"}</h2>
               <p className="text-white/50 text-sm mt-1">{gameOver.reason}</p>
             </div>
-            <div className="flex gap-3 w-full">
-              <Button className="flex-1" onClick={() => setLocation("/lobby")}><ArrowLeft className="w-4 h-4 mr-2" /> Lobby</Button>
-              <Button variant="outline" className="flex-1" onClick={() => setLocation(`/history/${id}`)}>Analysis</Button>
-            </div>
+            {quitRedirectSecs !== null ? (
+              <div className="w-full text-center">
+                <p className="text-white/40 text-xs mb-3">Returning to lobby in {quitRedirectSecs}s...</p>
+                <Button className="w-full" onClick={() => setLocation("/lobby")}><ArrowLeft className="w-4 h-4 mr-2" /> Go to Lobby Now</Button>
+              </div>
+            ) : (
+              <div className="flex gap-3 w-full">
+                <Button className="flex-1" onClick={() => setLocation("/lobby")}><ArrowLeft className="w-4 h-4 mr-2" /> Lobby</Button>
+                <Button variant="outline" className="flex-1" onClick={() => setLocation(`/history/${id}`)}>Analysis</Button>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -553,7 +593,15 @@ export default function MultiplayerGamePage() {
 
         {/* Back button — sits above board column */}
         <div className="w-full flex items-center gap-2 mb-1" style={{ maxWidth: "min(100%, calc(100vh - 260px))" }}>
-          <button onClick={() => setLocation("/lobby")} className="text-white/40 hover:text-white/80 transition-colors flex items-center gap-1.5 text-xs">
+          <button
+            onClick={() => {
+              if (!gameOver && game?.status === "active" && socket && user?.id) {
+                socket.emit("quitGame", { gameId: id, userId: user.id });
+              }
+              setLocation("/lobby");
+            }}
+            className="text-white/40 hover:text-white/80 transition-colors flex items-center gap-1.5 text-xs"
+          >
             <ArrowLeft className="w-4 h-4" /> Back to lobby
           </button>
           <div className="flex-1" />
