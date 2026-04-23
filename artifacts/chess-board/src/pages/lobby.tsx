@@ -538,9 +538,14 @@ export default function LobbyPage() {
                           <div className="flex items-center gap-1 shrink-0">
                             {(() => { const ag = getPlayerActiveGame(friend.userId); return ag ? (
                               <Link href={`/spectate/${ag.id}`}>
-                                <Button size="sm" variant="outline" className="h-7 text-xs gap-1 border-red-500/40 text-red-500 hover:bg-red-500/10">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
-                                  Watch
+                                <Button size="sm" variant="outline" className="h-auto py-0.5 px-2 text-xs border-red-500/40 text-red-500 hover:bg-red-500/10 flex flex-col items-center leading-tight gap-0">
+                                  <span className="flex items-center gap-1">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse shrink-0" />
+                                    Watch
+                                  </span>
+                                  <span className="text-[9px] text-red-400/80 font-normal truncate max-w-[80px]">
+                                    {ag.whitePlayer.nickname} vs {ag.blackPlayer.nickname}
+                                  </span>
                                 </Button>
                               </Link>
                             ) : (
@@ -596,9 +601,14 @@ export default function LobbyPage() {
                         <div className="flex items-center gap-1 shrink-0">
                           {(() => { const ag = getPlayerActiveGame(player.userId); return ag ? (
                             <Link href={`/spectate/${ag.id}`}>
-                              <Button size="sm" variant="outline" className="h-7 text-xs gap-1 border-red-500/40 text-red-500 hover:bg-red-500/10">
-                                <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
-                                Watch
+                              <Button size="sm" variant="outline" className="h-auto py-0.5 px-2 text-xs border-red-500/40 text-red-500 hover:bg-red-500/10 flex flex-col items-center leading-tight gap-0">
+                                <span className="flex items-center gap-1">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse shrink-0" />
+                                  Watch
+                                </span>
+                                <span className="text-[9px] text-red-400/80 font-normal truncate max-w-[80px]">
+                                  {ag.whitePlayer.nickname} vs {ag.blackPlayer.nickname}
+                                </span>
                               </Button>
                             </Link>
                           ) : (
