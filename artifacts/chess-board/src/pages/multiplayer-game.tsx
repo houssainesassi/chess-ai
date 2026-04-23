@@ -7,6 +7,7 @@ import { Chess } from "chess.js";
 import {
   ArrowLeft, Flag, Send, Handshake, Mic, MicOff,
   Camera, X, Trophy, Minus, MessageSquare, List, Mouse, Users,
+  WifiOff, Clock,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { io, Socket } from "socket.io-client";
@@ -183,6 +184,10 @@ export default function MultiplayerGamePage() {
   const [unreadChat, setUnreadChat] = useState(0);
   const [spectatorCount, setSpectatorCount] = useState(0);
 
+  // Opponent disconnect tracking
+  const [opponentDisconnectedSecs, setOpponentDisconnectedSecs] = useState<number | null>(null);
+  const disconnectCountdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   const recognitionRef = useRef<any>(null);
   const handleMoveRef = useRef<((from: string, to: string, promotion?: string) => void) | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -248,7 +253,10 @@ export default function MultiplayerGamePage() {
     loadGame();
 
     const sock = io({ path: "/api/socket.io", auth: { token } });
-    sock.on("connect", () => { sock.emit("joinGame", { gameId: id }); if (user?.id) sock.emit("registerUser", { userId: user.id }); });
+    sock.on("connect", () => {
+      sock.emit("joinGame", { gameId: id, userId: user?.id });
+      if (user?.id) sock.emit("registerUser", { userId: user.id });
+    });
     sock.on("roomUpdate", (engineState: any) => {
       setGame((prev: any) => {
         if (prev && engineState.fen && engineState.fen !== prev.fen) {
@@ -270,6 +278,26 @@ export default function MultiplayerGamePage() {
     sock.on("drawAccepted", () => { setDrawOfferSent(false); setGameOver({ winner: "draw", reason: "Draw agreed" }); });
     sock.on("drawDeclined", () => { setDrawOfferSent(false); toast({ title: "Draw offer declined" }); });
     sock.on("spectatorCount", ({ count }: { count: number }) => setSpectatorCount(count));
+
+    // ── Disconnect / abandonment events ──────────────────────────
+    sock.on("opponentDisconnected", ({ timeoutSeconds }: { disconnectedUserId: string; timeoutSeconds: number }) => {
+      setOpponentDisconnectedSecs(timeoutSeconds);
+    });
+    sock.on("opponentReconnected", () => {
+      setOpponentDisconnectedSecs(null);
+    });
+    sock.on("opponentAbandonedGame", ({ winner }: { winner: string; loserUserId: string }) => {
+      setOpponentDisconnectedSecs(null);
+      setGame((prev: any) => prev ? { ...prev, status: "completed", winner } : prev);
+      setGameOver((prev) => prev ?? {
+        winner,
+        reason: "You win! Opponent abandoned the game",
+      });
+    });
+    sock.on("gamePaused", () => {
+      toast({ title: "Game paused", description: "Both players disconnected. Waiting for reconnection..." });
+    });
+
     setSocket(sock);
     return () => { sock.emit("leaveGame", { gameId: id }); sock.disconnect(); };
   }, [id, token, user?.id]);
@@ -292,6 +320,31 @@ export default function MultiplayerGamePage() {
 
   // Keep ref in sync so voice callback always calls the latest handleMove
   useEffect(() => { handleMoveRef.current = handleMove; }, [handleMove]);
+
+  // Countdown timer for opponent disconnect
+  useEffect(() => {
+    if (opponentDisconnectedSecs === null) {
+      if (disconnectCountdownRef.current) {
+        clearInterval(disconnectCountdownRef.current);
+        disconnectCountdownRef.current = null;
+      }
+      return;
+    }
+    if (disconnectCountdownRef.current) clearInterval(disconnectCountdownRef.current);
+    disconnectCountdownRef.current = setInterval(() => {
+      setOpponentDisconnectedSecs(s => {
+        if (s === null || s <= 1) {
+          clearInterval(disconnectCountdownRef.current!);
+          disconnectCountdownRef.current = null;
+          return null;
+        }
+        return s - 1;
+      });
+    }, 1000);
+    return () => {
+      if (disconnectCountdownRef.current) clearInterval(disconnectCountdownRef.current);
+    };
+  }, [opponentDisconnectedSecs !== null]);
 
   // ── Voice ────────────────────────────────────────────────────────────────────
   const toggleVoice = () => {
@@ -346,6 +399,10 @@ export default function MultiplayerGamePage() {
   const handleResign = () => {
     if (!resignConfirm) { setResignConfirm(true); setTimeout(() => setResignConfirm(false), 4000); return; }
     socket?.emit("resignGame", { gameId: id, userId: user?.id }); setResignConfirm(false);
+  };
+
+  const handleQuit = () => {
+    socket?.emit("quitGame", { gameId: id, userId: user?.id });
   };
 
   const sendChat = (e: React.FormEvent) => {
@@ -451,6 +508,27 @@ export default function MultiplayerGamePage() {
             <div className="flex gap-3 w-full">
               <Button className="flex-1" onClick={() => setLocation("/lobby")}><ArrowLeft className="w-4 h-4 mr-2" /> Lobby</Button>
               <Button variant="outline" className="flex-1" onClick={() => setLocation(`/history/${id}`)}>Analysis</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Opponent disconnect banner ── */}
+      {opponentDisconnectedSecs !== null && !gameOver && (
+        <div className="fixed top-0 left-0 right-0 z-40 bg-yellow-950/95 border-b border-yellow-700/60 backdrop-blur-sm">
+          <div className="flex items-center justify-between px-4 py-2.5 max-w-lg mx-auto">
+            <div className="flex items-center gap-2.5">
+              <WifiOff className="w-4 h-4 text-yellow-400 shrink-0" />
+              <div>
+                <p className="text-sm font-semibold text-yellow-200">Opponent disconnected</p>
+                <p className="text-xs text-yellow-400/80">They will lose if they don't return in time</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5 shrink-0 ml-4">
+              <Clock className="w-3.5 h-3.5 text-yellow-400" />
+              <span className="text-base font-mono font-bold text-yellow-300 tabular-nums">
+                {String(Math.floor(opponentDisconnectedSecs / 60)).padStart(2, "0")}:{String(opponentDisconnectedSecs % 60).padStart(2, "0")}
+              </span>
             </div>
           </div>
         </div>
@@ -620,6 +698,27 @@ export default function MultiplayerGamePage() {
             </form>
           </div>
         </div>
+
+        {/* Game actions */}
+        {!gameOver && (
+          <div className="border-t border-white/5 p-3 flex gap-2 shrink-0">
+            <button
+              onClick={handleQuit}
+              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-red-600/20 hover:bg-red-600/30 text-red-400 text-xs font-medium transition-colors border border-red-600/20"
+            >
+              <Flag className="w-3.5 h-3.5" />
+              Quit Game
+            </button>
+            <button
+              disabled={drawOfferSent}
+              onClick={() => { if (!drawOfferSent) { socket?.emit("offerDraw", { gameId: id, userId: user?.id }); setDrawOfferSent(true); toast({ title: "Draw offered" }); } }}
+              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-white/50 hover:text-white/80 text-xs font-medium transition-colors border border-white/10 disabled:opacity-30"
+            >
+              <Handshake className="w-3.5 h-3.5" />
+              {drawOfferSent ? "Offered" : "Draw"}
+            </button>
+          </div>
+        )}
       </aside>
 
       {/* ── Mobile: chat + moves sheets (slide up) ── */}

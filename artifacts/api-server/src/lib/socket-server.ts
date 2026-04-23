@@ -11,11 +11,22 @@ let io: SocketIOServer | null = null;
 
 const INITIAL_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 
+// 2-minute abandonment timeout
+const DISCONNECT_TIMEOUT_MS = 2 * 60 * 1000;
+
 // Matchmaking queue: userId -> socketId
 const matchmakingQueue = new Map<string, string>();
 
 // Spectators: gameId -> Set<socketId>
 const spectatorMap = new Map<string, Set<string>>();
+
+// Player-socket session tracking
+// socketId -> { gameId, userId }
+const playerGameMap = new Map<string, { gameId: string; userId: string }>();
+// gameId -> Map<userId, socketId>
+const gamePlayerSockets = new Map<string, Map<string, string>>();
+// Abandonment timers: `${gameId}:${userId}` -> NodeJS.Timeout
+const disconnectTimers = new Map<string, NodeJS.Timeout>();
 
 function getSpectatorCount(gameId: string): number {
   return spectatorMap.get(gameId)?.size ?? 0;
@@ -24,6 +35,32 @@ function getSpectatorCount(gameId: string): number {
 function broadcastSpectatorCount(gameId: string): void {
   if (io) {
     io.to(`game:${gameId}`).emit("spectatorCount", { count: getSpectatorCount(gameId) });
+  }
+}
+
+async function endGameByAbandonment(gameId: string, loserUserId: string): Promise<void> {
+  try {
+    const [game] = await db
+      .select()
+      .from(chessGamesTable)
+      .where(eq(chessGamesTable.id, gameId));
+
+    if (!game || game.status !== "active") return;
+
+    const winner = game.whitePlayerId === loserUserId ? "black" : "white";
+
+    await db
+      .update(chessGamesTable)
+      .set({ status: "completed", winner, updatedAt: new Date() })
+      .where(and(eq(chessGamesTable.id, gameId), eq(chessGamesTable.status, "active")));
+
+    io?.to(`game:${gameId}`).emit("opponentAbandonedGame", { winner, loserUserId });
+    logger.info({ gameId, loserUserId, winner }, "Game ended by abandonment");
+
+    // Cleanup game room
+    gamePlayerSockets.get(gameId)?.delete(loserUserId);
+  } catch (err) {
+    logger.error({ err }, "Failed to end game by abandonment");
   }
 }
 
@@ -42,15 +79,41 @@ export function initSocketServer(httpServer: HttpServer): SocketIOServer {
     socket.emit("gameUpdate", chessEngine.getState());
     socket.emit("arduinoStatus", { connected: chessEngine.isArduinoConnected() });
 
-    socket.on("joinGame", ({ gameId }: { gameId: string }) => {
+    // ── Join game ─────────────────────────────────────────────────
+    socket.on("joinGame", ({ gameId, userId }: { gameId: string; userId?: string }) => {
       socket.join(`game:${gameId}`);
-      logger.info({ socketId: socket.id, gameId }, "Client joined game room");
-      // Send current spectator count on join
+      logger.info({ socketId: socket.id, gameId, userId }, "Client joined game room");
+
+      if (userId) {
+        // Register player-socket mapping
+        playerGameMap.set(socket.id, { gameId, userId });
+        if (!gamePlayerSockets.has(gameId)) {
+          gamePlayerSockets.set(gameId, new Map());
+        }
+        gamePlayerSockets.get(gameId)!.set(userId, socket.id);
+
+        // Cancel any pending disconnect timer (player reconnected)
+        const timerKey = `${gameId}:${userId}`;
+        if (disconnectTimers.has(timerKey)) {
+          clearTimeout(disconnectTimers.get(timerKey)!);
+          disconnectTimers.delete(timerKey);
+          // Notify the room (opponent) that player came back
+          socket.to(`game:${gameId}`).emit("opponentReconnected", { userId });
+          logger.info({ gameId, userId }, "Player reconnected — abandonment timer cancelled");
+        }
+      }
+
       socket.emit("spectatorCount", { count: getSpectatorCount(gameId) });
     });
 
     socket.on("leaveGame", ({ gameId }: { gameId: string }) => {
       socket.leave(`game:${gameId}`);
+      // Clean player tracking
+      const session = playerGameMap.get(socket.id);
+      if (session && session.gameId === gameId) {
+        playerGameMap.delete(socket.id);
+        gamePlayerSockets.get(gameId)?.delete(session.userId);
+      }
     });
 
     socket.on("registerUser", ({ userId }: { userId: string }) => {
@@ -60,7 +123,7 @@ export function initSocketServer(httpServer: HttpServer): SocketIOServer {
       }
     });
 
-    // ── Spectator ─────────────────────────────────────────────────────
+    // ── Spectator ─────────────────────────────────────────────────
     socket.on("joinSpectator", ({ gameId }: { gameId: string }) => {
       if (!gameId) return;
       socket.join(`game:${gameId}`);
@@ -78,7 +141,7 @@ export function initSocketServer(httpServer: HttpServer): SocketIOServer {
       broadcastSpectatorCount(gameId);
     });
 
-    // ── Matchmaking ──────────────────────────────────────────────────
+    // ── Matchmaking ──────────────────────────────────────────────
     socket.on("joinMatchmaking", async ({ userId }: { userId: string }) => {
       if (!userId) return;
       logger.info({ socketId: socket.id, userId }, "Player joining matchmaking queue");
@@ -108,7 +171,6 @@ export function initSocketServer(httpServer: HttpServer): SocketIOServer {
           gameRoomManager.getOrCreate(game.id);
           logger.info({ gameId: game.id, whiteId, blackId }, "Match found");
 
-          // Fetch both players' profiles
           const allUsers = await db.select().from(usersTable);
           const userMap = Object.fromEntries(allUsers.map((u) => [u.id, u]));
 
@@ -126,7 +188,6 @@ export function initSocketServer(httpServer: HttpServer): SocketIOServer {
             country: waitingPlayer?.country || null,
           };
 
-          // Tell waiting player: opponent is the new player
           io?.to(`user:${opponentId}`).emit("matchFound", {
             gameId: game.id,
             opponentId: userId,
@@ -135,7 +196,6 @@ export function initSocketServer(httpServer: HttpServer): SocketIOServer {
             opponentCountry: newPlayerProfile.country,
           });
 
-          // Tell new player: opponent is the waiting player
           io?.to(`user:${userId}`).emit("matchFound", {
             gameId: game.id,
             opponentId: opponentId,
@@ -161,7 +221,7 @@ export function initSocketServer(httpServer: HttpServer): SocketIOServer {
       }
     });
 
-    // ── Chat ─────────────────────────────────────────────────────────
+    // ── Chat ─────────────────────────────────────────────────────
     socket.on(
       "sendMessage",
       async ({
@@ -190,7 +250,7 @@ export function initSocketServer(httpServer: HttpServer): SocketIOServer {
       }
     );
 
-    // ── Resign ───────────────────────────────────────────────────────
+    // ── Resign ───────────────────────────────────────────────────
     socket.on(
       "resignGame",
       async ({ gameId, userId }: { gameId: string; userId: string }) => {
@@ -217,13 +277,59 @@ export function initSocketServer(httpServer: HttpServer): SocketIOServer {
 
           io?.to(`game:${gameId}`).emit("playerResigned", { resignedUserId: userId, winner });
           logger.info({ gameId, userId, winner }, "Player resigned");
+
+          // Cancel any pending disconnect timers for this game
+          const timerKey = `${gameId}:${userId}`;
+          if (disconnectTimers.has(timerKey)) {
+            clearTimeout(disconnectTimers.get(timerKey)!);
+            disconnectTimers.delete(timerKey);
+          }
         } catch (err) {
           logger.error({ err }, "Failed to process resign");
         }
       }
     );
 
-    // ── Draw offer / accept / decline ────────────────────────────────
+    // ── Quit game (immediate forfeit, no confirmation needed) ────
+    socket.on(
+      "quitGame",
+      async ({ gameId, userId }: { gameId: string; userId: string }) => {
+        if (!gameId || !userId) return;
+
+        try {
+          const [game] = await db
+            .select()
+            .from(chessGamesTable)
+            .where(eq(chessGamesTable.id, gameId));
+
+          if (!game || game.status !== "active") return;
+
+          const isWhite = game.whitePlayerId === userId;
+          const isBlack = game.blackPlayerId === userId;
+          if (!isWhite && !isBlack) return;
+
+          const winner = isWhite ? "black" : "white";
+
+          await db
+            .update(chessGamesTable)
+            .set({ status: "completed", winner, updatedAt: new Date() })
+            .where(and(eq(chessGamesTable.id, gameId), eq(chessGamesTable.status, "active")));
+
+          io?.to(`game:${gameId}`).emit("playerResigned", { resignedUserId: userId, winner });
+          logger.info({ gameId, userId, winner }, "Player quit game");
+
+          const timerKey = `${gameId}:${userId}`;
+          if (disconnectTimers.has(timerKey)) {
+            clearTimeout(disconnectTimers.get(timerKey)!);
+            disconnectTimers.delete(timerKey);
+          }
+        } catch (err) {
+          logger.error({ err }, "Failed to process quit");
+        }
+      }
+    );
+
+    // ── Draw offer / accept / decline ────────────────────────────
     socket.on("offerDraw", ({ gameId, userId }: { gameId: string; userId: string }) => {
       if (!gameId || !userId) return;
       socket.to(`game:${gameId}`).emit("drawOffered", { byUserId: userId });
@@ -257,7 +363,7 @@ export function initSocketServer(httpServer: HttpServer): SocketIOServer {
       socket.to(`game:${gameId}`).emit("drawDeclined", {});
     });
 
-    // ── Disconnect ───────────────────────────────────────────────────
+    // ── Disconnect ───────────────────────────────────────────────
     socket.on("disconnect", () => {
       // Clean matchmaking
       for (const [userId, sid] of matchmakingQueue.entries()) {
@@ -279,6 +385,58 @@ export function initSocketServer(httpServer: HttpServer): SocketIOServer {
         }
       }
 
+      // Handle player disconnection from active game
+      const session = playerGameMap.get(socket.id);
+      if (session) {
+        const { gameId, userId } = session;
+        playerGameMap.delete(socket.id);
+        gamePlayerSockets.get(gameId)?.delete(userId);
+
+        (async () => {
+          try {
+            const [game] = await db
+              .select()
+              .from(chessGamesTable)
+              .where(eq(chessGamesTable.id, gameId));
+
+            if (!game || game.status !== "active") return;
+
+            // Race condition guard: player may have already reconnected
+            if (gamePlayerSockets.get(gameId)?.has(userId)) return;
+
+            const remainingCount = gamePlayerSockets.get(gameId)?.size ?? 0;
+            const timeoutSeconds = DISCONNECT_TIMEOUT_MS / 1000;
+
+            if (remainingCount === 0) {
+              // Both players are gone — notify spectators, start timer for this player
+              io?.to(`game:${gameId}`).emit("gamePaused", {
+                reason: "Both players disconnected",
+                disconnectedUserId: userId,
+                timeoutSeconds,
+              });
+            } else {
+              // Notify opponent
+              io?.to(`game:${gameId}`).emit("opponentDisconnected", {
+                disconnectedUserId: userId,
+                timeoutSeconds,
+              });
+            }
+
+            // Start abandonment timer
+            const timerKey = `${gameId}:${userId}`;
+            const timer = setTimeout(() => {
+              disconnectTimers.delete(timerKey);
+              endGameByAbandonment(gameId, userId);
+            }, DISCONNECT_TIMEOUT_MS);
+
+            disconnectTimers.set(timerKey, timer);
+            logger.info({ gameId, userId, timeoutSeconds }, "Abandonment timer started");
+          } catch (err) {
+            logger.error({ err }, "Failed to handle player disconnect from game");
+          }
+        })();
+      }
+
       logger.info({ socketId: socket.id }, "Client disconnected");
     });
   });
@@ -295,7 +453,6 @@ export function broadcastGameUpdate(): void {
 export function broadcastRoomUpdate(gameId: string, state: GameState): void {
   if (io) {
     io.to(`game:${gameId}`).emit("roomUpdate", state);
-    // Also broadcast spectator count so it stays fresh after moves
     io.to(`game:${gameId}`).emit("spectatorCount", { count: getSpectatorCount(gameId) });
   }
 }
