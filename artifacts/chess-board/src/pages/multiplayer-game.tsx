@@ -6,13 +6,13 @@ import { Badge } from "@/components/ui/badge";
 import { Chess } from "chess.js";
 import {
   ArrowLeft, Flag, Send, Handshake, Mic, MicOff,
-  Camera, X, Trophy, Minus, MessageSquare, List, Mouse, Hand,
+  Camera, X, Trophy, Minus, MessageSquare, List, Mouse,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { io, Socket } from "socket.io-client";
 import { Input } from "@/components/ui/input";
 import { usePreferences, type BoardTheme } from "@/hooks/use-preferences";
-import { CameraOverlay, DraggableCameraPopup } from "@/components/camera-overlay";
+import { CameraPopup } from "@/components/camera-overlay";
 
 // ── Pieces ────────────────────────────────────────────────────────────────────
 
@@ -177,12 +177,9 @@ export default function MultiplayerGamePage() {
   const [voiceActive, setVoiceActive] = useState(false);
   const [voiceTranscript, setVoiceTranscript] = useState("");
   const [cameraOpen, setCameraOpen] = useState(false);
-  const [handActive, setHandActive] = useState(false);
   const [mouseActive, setMouseActive] = useState(true);
-  const [hoveredSqFromCamera, setHoveredSqFromCamera] = useState<string | null>(null);
   const [showChat, setShowChat] = useState(false);
   const [showMoves, setShowMoves] = useState(false);
-  const [voiceSelection, setVoiceSelection] = useState<string | null>(null);
   const [unreadChat, setUnreadChat] = useState(0);
 
   const recognitionRef = useRef<any>(null);
@@ -212,10 +209,16 @@ export default function MultiplayerGamePage() {
     } catch { toast({ title: "Invalid Move", variant: "destructive" }); }
   }, [id, token, toast, playMove, playCheck, playGameEnd]);
 
-  const handleCameraSquare = useCallback((sq: string) => {
-    if (voiceSelection) { handleMove(voiceSelection, sq); setVoiceSelection(null); toast({ title: `${voiceSelection}→${sq}` }); }
-    else { setVoiceSelection(sq); toast({ title: `${sq.toUpperCase()} selected`, description: "Hover destination" }); }
-  }, [voiceSelection, handleMove]);
+  const handleCameraMove = useCallback((uciMove: string, _source: "hand" | "eye") => {
+    const from = uciMove.slice(0, 2);
+    const to = uciMove.slice(2, 4);
+    const promo = uciMove.length > 4 ? uciMove[4] : undefined;
+    handleMoveRef.current?.(from, to, promo);
+  }, []);
+
+  const isCameraMoveLocked = useCallback(() => {
+    return !!gameOver;
+  }, [gameOver]);
 
   // ── Socket ───────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -388,7 +391,7 @@ export default function MultiplayerGamePage() {
   const iWon = gameOver && ((gameOver.winner === "white" && game.whitePlayerId === user?.id) || (gameOver.winner === "black" && game.blackPlayerId === user?.id));
   const isDraw = gameOver?.winner === "draw";
 
-  const showCameraSection = cameraOpen || handActive;
+  const showCameraSection = cameraOpen;
 
   // Helper: player bar component
   const PlayerBar = ({ isMe }: { isMe: boolean }) => {
@@ -516,19 +519,11 @@ export default function MultiplayerGamePage() {
               <span className="italic truncate">"{voiceTranscript}"</span>
             </div>
           )}
-          {voiceSelection && (
-            <div className="flex items-center gap-2 text-xs text-orange-400 mb-1.5 px-1">
-              <Hand className="w-3 h-3 shrink-0" />
-              <span>Selected: <strong>{voiceSelection.toUpperCase()}</strong> — hover destination</span>
-            </div>
-          )}
-
           <div className="flex items-center gap-1.5 flex-wrap">
             {/* Pill toggles */}
             {[
               { label: mouseActive ? "Mouse" : "Mouse", icon: <Mouse className="w-3 h-3" />, active: mouseActive, onClick: () => setMouseActive(v => !v) },
               { label: "Camera", icon: <Camera className="w-3 h-3" />, active: cameraOpen, onClick: () => setCameraOpen(v => !v) },
-              { label: "Hand", icon: <Hand className="w-3 h-3" />, active: handActive, onClick: () => { setHandActive(v => { const n = !v; if (n) setCameraOpen(true); return n; }); setVoiceSelection(null); } },
               { label: "Voice", icon: voiceActive ? <Mic className="w-3 h-3 animate-pulse" /> : <MicOff className="w-3 h-3" />, active: voiceActive, onClick: toggleVoice },
             ].map(({ label, icon, active, onClick }) => (
               <button
@@ -675,15 +670,13 @@ export default function MultiplayerGamePage() {
         </button>
       </div>
 
-      {/* ── Draggable camera popup ── */}
+      {/* ── Camera popup ── */}
       {showCameraSection && (
-        <DraggableCameraPopup
-          onSquareSelect={handleCameraSquare}
-          flipped={flipped}
-          handActive={handActive}
-          onHoverChange={setHoveredSqFromCamera}
-          onClose={() => { setCameraOpen(false); setHandActive(false); setVoiceSelection(null); }}
-          hoveredSq={hoveredSqFromCamera}
+        <CameraPopup
+          currentFen={game?.fen || "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"}
+          onMove={handleCameraMove}
+          isMoveLocked={isCameraMoveLocked}
+          onClose={() => setCameraOpen(false)}
         />
       )}
     </div>

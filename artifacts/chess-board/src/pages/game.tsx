@@ -7,7 +7,7 @@ import { Flag, RotateCcw, Mic, MicOff, Bot, List, X, ArrowLeft, Camera } from "l
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import { usePreferences, type BoardTheme } from "@/hooks/use-preferences";
-import { DraggableCameraPopup } from "@/components/camera-overlay";
+import { CameraPopup } from "@/components/camera-overlay";
 import {
   Select,
   SelectContent,
@@ -189,12 +189,9 @@ export default function GamePage() {
   const [voiceTranscript, setVoiceTranscript] = useState("");
   const [showMoves, setShowMoves] = useState(false);
   const [cameraOpen, setCameraOpen] = useState(false);
-  const [handActive, setHandActive] = useState(true);
-  const [hoveredSqFromCamera, setHoveredSqFromCamera] = useState<string | null>(null);
-  const [cameraSelection, setCameraSelection] = useState<string | null>(null);
 
   const recognitionRef = useRef<any>(null);
-  const handleMoveRef = useRef<((from: string, to: string) => void) | null>(null);
+  const handleMoveRef = useRef<((from: string, to: string, promotion?: string) => void) | null>(null);
   const moveListRef = useRef<HTMLDivElement>(null);
 
   const refresh = useCallback(async () => {
@@ -268,16 +265,16 @@ export default function GamePage() {
   // Keep ref in sync so voice always calls the latest handleMove
   useEffect(() => { handleMoveRef.current = handleMove; }, [handleMove]);
 
-  const handleCameraSquare = useCallback((sq: string) => {
-    if (cameraSelection) {
-      handleMoveRef.current?.(cameraSelection, sq);
-      setCameraSelection(null);
-      toast({ title: `${cameraSelection.toUpperCase()} → ${sq.toUpperCase()}` });
-    } else {
-      setCameraSelection(sq);
-      toast({ title: `${sq.toUpperCase()} selected`, description: "Point at destination square" });
-    }
-  }, [cameraSelection, toast]);
+  const handleCameraMove = useCallback((uciMove: string, _source: "hand" | "eye") => {
+    const from = uciMove.slice(0, 2);
+    const to = uciMove.slice(2, 4);
+    const promo = uciMove.length > 4 ? uciMove[4] : undefined;
+    handleMoveRef.current?.(from, to, promo);
+  }, []);
+
+  const isCameraMoveLocked = useCallback(() => {
+    return moving || aiThinking || !gameState;
+  }, [moving, aiThinking, gameState]);
 
   const toggleVoice = () => {
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -475,14 +472,12 @@ export default function GamePage() {
       </div>
 
       {/* ── Camera popup ── */}
-      {cameraOpen && (
-        <DraggableCameraPopup
-          onSquareSelect={handleCameraSquare}
-          flipped={false}
-          handActive={handActive}
-          onHoverChange={setHoveredSqFromCamera}
+      {cameraOpen && gameState && (
+        <CameraPopup
+          currentFen={gameState.fen}
+          onMove={handleCameraMove}
+          isMoveLocked={isCameraMoveLocked}
           onClose={() => setCameraOpen(false)}
-          hoveredSq={hoveredSqFromCamera}
         />
       )}
 
