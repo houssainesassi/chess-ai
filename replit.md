@@ -30,9 +30,10 @@ A full-stack chess platform with real-time multiplayer, AI analysis, game histor
 
 ## Pages
 - `/` — Login/Register (JWT auth)
-- `/lobby` — Game mode hub (Play Online, Play vs Robot, Friends, Leaderboard, Player Search)
+- `/lobby` — Game mode hub (Play Online, Play vs Robot, Friends, Leaderboard, Player Search, Watch Live)
 - `/game` — Local AI game with Stockfish analysis
 - `/game/:id` — Real-time multiplayer game via Socket.IO
+- `/spectate/:id` — **Spectator mode**: watch any live game in real-time (read-only board, spectator count, Live indicator)
 - `/history` — Game history with stats (Wins/Losses/Draws/Accuracy)
 - `/history/:id` — Game replay + Stockfish move analysis
 - `/settings` — Account settings (avatar color picker, country, 2-step delete confirmation)

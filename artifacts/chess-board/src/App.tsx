@@ -10,6 +10,7 @@ import AuthPage from "@/pages/auth";
 import LobbyPage from "@/pages/lobby";
 import GamePage from "@/pages/game";
 import MultiplayerGamePage from "@/pages/multiplayer-game";
+import SpectatePage from "@/pages/spectate";
 import HistoryPage from "@/pages/history";
 import HistoryReplayPage from "@/pages/history-replay";
 import SettingsPage from "@/pages/settings";
@@ -43,6 +44,7 @@ function Router() {
         <Route path="/lobby" component={() => <ProtectedRoute component={LobbyPage} />} />
         <Route path="/game" component={() => <ProtectedRoute component={GamePage} />} />
         <Route path="/game/:id" component={() => <ProtectedRoute component={MultiplayerGamePage} />} />
+        <Route path="/spectate/:id" component={() => <ProtectedRoute component={SpectatePage} />} />
         <Route path="/history" component={() => <ProtectedRoute component={HistoryPage} />} />
         <Route path="/history/:id" component={() => <ProtectedRoute component={HistoryReplayPage} />} />
         <Route path="/settings" component={() => <ProtectedRoute component={SettingsPage} />} />

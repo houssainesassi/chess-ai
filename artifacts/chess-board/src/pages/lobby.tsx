@@ -5,10 +5,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/hooks/use-auth";
-import { api, type FriendData, type LeaderboardEntry, type Profile } from "@/lib/api";
+import { api, type FriendData, type LeaderboardEntry, type Profile, type ActiveGame } from "@/lib/api";
 import {
   Globe2, Bot, UserPlus, Clock, Swords, Search, Check, X,
-  ExternalLink, ChevronDown, ChevronUp, Loader2, Users,
+  ExternalLink, ChevronDown, ChevronUp, Loader2, Users, Radio, Eye,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { io, Socket } from "socket.io-client";
@@ -33,10 +33,25 @@ export default function LobbyPage() {
   const [showPending, setShowPending] = useState(true);
   const searchTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
+  const [activeGames, setActiveGames] = useState<ActiveGame[]>([]);
+  const [activeGamesLoading, setActiveGamesLoading] = useState(false);
+
   const [isMatchmaking, setIsMatchmaking] = useState(false);
   const [matchmakingStatus, setMatchmakingStatus] = useState("Searching for opponent...");
   const [matchedOpponent, setMatchedOpponent] = useState<{ nickname: string; avatarColor: string; country?: string } | null>(null);
   const matchmakingSocketRef = useRef<Socket | null>(null);
+
+  const fetchActiveGames = async () => {
+    setActiveGamesLoading(true);
+    try {
+      const res = await api.getActiveGames();
+      setActiveGames(res.games);
+    } catch {
+      setActiveGames([]);
+    } finally {
+      setActiveGamesLoading(false);
+    }
+  };
 
   const fetchData = async () => {
     if (!token) return;
@@ -56,7 +71,13 @@ export default function LobbyPage() {
     }
   };
 
-  useEffect(() => { if (token) fetchData(); }, [token]);
+  useEffect(() => { if (token) { fetchData(); fetchActiveGames(); } }, [token]);
+
+  // Poll active games every 10s to keep the list fresh
+  useEffect(() => {
+    const interval = setInterval(fetchActiveGames, 10_000);
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     if (!searchQuery.trim() || searchQuery.length < 2) {
@@ -310,6 +331,83 @@ export default function LobbyPage() {
               </div>
             </CardContent>
           </Card>
+        </div>
+
+        {/* Live Games */}
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <h2 className="text-xl font-bold">Watch Live</h2>
+              {activeGames.length > 0 && (
+                <span className="flex items-center gap-1 text-xs font-semibold text-red-500 bg-red-500/10 px-2 py-0.5 rounded-full">
+                  <Radio className="w-2.5 h-2.5 animate-pulse" />
+                  {activeGames.length} LIVE
+                </span>
+              )}
+            </div>
+            <button
+              onClick={fetchActiveGames}
+              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Refresh
+            </button>
+          </div>
+
+          {activeGamesLoading && activeGames.length === 0 ? (
+            <div className="text-sm text-muted-foreground text-center py-4">Loading live games…</div>
+          ) : activeGames.length === 0 ? (
+            <Card className="bg-card border-border">
+              <CardContent className="p-6 text-center text-muted-foreground text-sm">
+                <Eye className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                No active games right now. Be the first to play!
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-2">
+              {activeGames.map(game => (
+                <Card key={game.id} className="bg-card border-border hover:border-primary/30 transition-colors">
+                  <CardContent className="p-3 flex items-center gap-3">
+                    {/* Players */}
+                    <div className="flex-1 flex items-center gap-2 min-w-0">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <div
+                          className="w-6 h-6 rounded-full shrink-0 flex items-center justify-center text-[10px] font-bold text-white"
+                          style={{ background: game.whitePlayer.avatarColor }}
+                        >
+                          {game.whitePlayer.nickname.charAt(0).toUpperCase()}
+                        </div>
+                        <span className="text-sm font-medium truncate max-w-[80px]">{game.whitePlayer.nickname}</span>
+                      </div>
+                      <span className="text-xs text-muted-foreground shrink-0">vs</span>
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <div
+                          className="w-6 h-6 rounded-full shrink-0 flex items-center justify-center text-[10px] font-bold text-white"
+                          style={{ background: game.blackPlayer.avatarColor }}
+                        >
+                          {game.blackPlayer.nickname.charAt(0).toUpperCase()}
+                        </div>
+                        <span className="text-sm font-medium truncate max-w-[80px]">{game.blackPlayer.nickname}</span>
+                      </div>
+                    </div>
+
+                    {/* Live badge */}
+                    <span className="shrink-0 flex items-center gap-1 text-[10px] font-semibold text-red-500">
+                      <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                      LIVE
+                    </span>
+
+                    {/* Watch button */}
+                    <Link href={`/spectate/${game.id}`}>
+                      <Button size="sm" variant="outline" className="shrink-0 h-7 px-3 text-xs gap-1">
+                        <Eye className="w-3 h-3" />
+                        Watch
+                      </Button>
+                    </Link>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
         </div>
 
         <div>

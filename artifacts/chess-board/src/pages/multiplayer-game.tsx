@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Chess } from "chess.js";
 import {
   ArrowLeft, Flag, Send, Handshake, Mic, MicOff,
-  Camera, X, Trophy, Minus, MessageSquare, List, Mouse,
+  Camera, X, Trophy, Minus, MessageSquare, List, Mouse, Users,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { io, Socket } from "socket.io-client";
@@ -181,6 +181,7 @@ export default function MultiplayerGamePage() {
   const [showChat, setShowChat] = useState(false);
   const [showMoves, setShowMoves] = useState(false);
   const [unreadChat, setUnreadChat] = useState(0);
+  const [spectatorCount, setSpectatorCount] = useState(0);
 
   const recognitionRef = useRef<any>(null);
   const handleMoveRef = useRef<((from: string, to: string, promotion?: string) => void) | null>(null);
@@ -268,6 +269,7 @@ export default function MultiplayerGamePage() {
     sock.on("drawOffered", () => setDrawOfferedByOpponent(true));
     sock.on("drawAccepted", () => { setDrawOfferSent(false); setGameOver({ winner: "draw", reason: "Draw agreed" }); });
     sock.on("drawDeclined", () => { setDrawOfferSent(false); toast({ title: "Draw offer declined" }); });
+    sock.on("spectatorCount", ({ count }: { count: number }) => setSpectatorCount(count));
     setSocket(sock);
     return () => { sock.emit("leaveGame", { gameId: id }); sock.disconnect(); };
   }, [id, token, user?.id]);
@@ -477,10 +479,18 @@ export default function MultiplayerGamePage() {
             <ArrowLeft className="w-4 h-4" /> Back to lobby
           </button>
           <div className="flex-1" />
-          {/* Live sync */}
-          <div className="flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" />
-            <span className="text-[10px] text-green-400 font-medium">Live</span>
+          {/* Live sync + spectators */}
+          <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" />
+              <span className="text-[10px] text-green-400 font-medium">Live</span>
+            </div>
+            {spectatorCount > 0 && (
+              <div className="flex items-center gap-1 text-[10px] text-white/40">
+                <Users className="w-3 h-3" />
+                <span>{spectatorCount}</span>
+              </div>
+            )}
           </div>
         </div>
 

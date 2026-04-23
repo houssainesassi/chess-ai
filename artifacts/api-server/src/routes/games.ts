@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { eq, and, or } from "drizzle-orm";
-import { db, chessGamesTable } from "@workspace/db";
+import { db, chessGamesTable, usersTable } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
 import { gameRoomManager } from "../lib/game-room-manager";
 import { broadcastRoomUpdate, getSocketServer } from "../lib/socket-server";
@@ -20,6 +20,39 @@ router.get("/games", async (_req, res) => {
   } catch (err) {
     logger.error({ err }, "Failed to list games");
     res.status(500).json({ error: "internal_error", message: "Failed to list games" });
+  }
+});
+
+router.get("/games/active", async (_req, res) => {
+  try {
+    const games = await db
+      .select()
+      .from(chessGamesTable)
+      .where(eq(chessGamesTable.status, "active"))
+      .orderBy(chessGamesTable.updatedAt);
+
+    if (games.length === 0) {
+      res.json({ games: [] });
+      return;
+    }
+
+    const users = await db.select().from(usersTable);
+    const userMap = Object.fromEntries(users.map(u => [u.id, u]));
+
+    const enriched = games.map(g => ({
+      ...g,
+      whitePlayer: userMap[g.whitePlayerId]
+        ? { nickname: userMap[g.whitePlayerId].nickname || userMap[g.whitePlayerId].username, avatarColor: userMap[g.whitePlayerId].avatarColor || "#3b82f6" }
+        : { nickname: "Unknown", avatarColor: "#3b82f6" },
+      blackPlayer: g.blackPlayerId && userMap[g.blackPlayerId]
+        ? { nickname: userMap[g.blackPlayerId].nickname || userMap[g.blackPlayerId].username, avatarColor: userMap[g.blackPlayerId].avatarColor || "#64748b" }
+        : { nickname: "Unknown", avatarColor: "#64748b" },
+    }));
+
+    res.json({ games: enriched });
+  } catch (err) {
+    logger.error({ err }, "Failed to list active games");
+    res.status(500).json({ error: "internal_error", message: "Failed to list active games" });
   }
 });
 

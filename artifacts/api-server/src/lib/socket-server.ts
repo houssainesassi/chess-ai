@@ -14,6 +14,19 @@ const INITIAL_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 // Matchmaking queue: userId -> socketId
 const matchmakingQueue = new Map<string, string>();
 
+// Spectators: gameId -> Set<socketId>
+const spectatorMap = new Map<string, Set<string>>();
+
+function getSpectatorCount(gameId: string): number {
+  return spectatorMap.get(gameId)?.size ?? 0;
+}
+
+function broadcastSpectatorCount(gameId: string): void {
+  if (io) {
+    io.to(`game:${gameId}`).emit("spectatorCount", { count: getSpectatorCount(gameId) });
+  }
+}
+
 export function initSocketServer(httpServer: HttpServer): SocketIOServer {
   io = new SocketIOServer(httpServer, {
     path: "/api/socket.io",
@@ -32,6 +45,8 @@ export function initSocketServer(httpServer: HttpServer): SocketIOServer {
     socket.on("joinGame", ({ gameId }: { gameId: string }) => {
       socket.join(`game:${gameId}`);
       logger.info({ socketId: socket.id, gameId }, "Client joined game room");
+      // Send current spectator count on join
+      socket.emit("spectatorCount", { count: getSpectatorCount(gameId) });
     });
 
     socket.on("leaveGame", ({ gameId }: { gameId: string }) => {
@@ -43,6 +58,24 @@ export function initSocketServer(httpServer: HttpServer): SocketIOServer {
         socket.join(`user:${userId}`);
         logger.info({ socketId: socket.id, userId }, "Client registered personal room");
       }
+    });
+
+    // ── Spectator ─────────────────────────────────────────────────────
+    socket.on("joinSpectator", ({ gameId }: { gameId: string }) => {
+      if (!gameId) return;
+      socket.join(`game:${gameId}`);
+      if (!spectatorMap.has(gameId)) spectatorMap.set(gameId, new Set());
+      spectatorMap.get(gameId)!.add(socket.id);
+      logger.info({ socketId: socket.id, gameId }, "Spectator joined");
+      broadcastSpectatorCount(gameId);
+    });
+
+    socket.on("leaveSpectator", ({ gameId }: { gameId: string }) => {
+      if (!gameId) return;
+      socket.leave(`game:${gameId}`);
+      spectatorMap.get(gameId)?.delete(socket.id);
+      logger.info({ socketId: socket.id, gameId }, "Spectator left");
+      broadcastSpectatorCount(gameId);
     });
 
     // ── Matchmaking ──────────────────────────────────────────────────
@@ -226,6 +259,7 @@ export function initSocketServer(httpServer: HttpServer): SocketIOServer {
 
     // ── Disconnect ───────────────────────────────────────────────────
     socket.on("disconnect", () => {
+      // Clean matchmaking
       for (const [userId, sid] of matchmakingQueue.entries()) {
         if (sid === socket.id) {
           matchmakingQueue.delete(userId);
@@ -233,6 +267,18 @@ export function initSocketServer(httpServer: HttpServer): SocketIOServer {
           break;
         }
       }
+
+      // Clean spectators
+      for (const [gameId, sockets] of spectatorMap.entries()) {
+        if (sockets.has(socket.id)) {
+          sockets.delete(socket.id);
+          broadcastSpectatorCount(gameId);
+          logger.info({ socketId: socket.id, gameId }, "Spectator disconnected");
+          if (sockets.size === 0) spectatorMap.delete(gameId);
+          break;
+        }
+      }
+
       logger.info({ socketId: socket.id }, "Client disconnected");
     });
   });
@@ -249,6 +295,8 @@ export function broadcastGameUpdate(): void {
 export function broadcastRoomUpdate(gameId: string, state: GameState): void {
   if (io) {
     io.to(`game:${gameId}`).emit("roomUpdate", state);
+    // Also broadcast spectator count so it stays fresh after moves
+    io.to(`game:${gameId}`).emit("spectatorCount", { count: getSpectatorCount(gameId) });
   }
 }
 

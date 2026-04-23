@@ -82,6 +82,9 @@ export const api = {
       body: JSON.stringify({ move }),
     }),
 
+  // Active games (spectator)
+  getActiveGames: () => req<{ games: ActiveGame[] }>("/games/active"),
+
   // Leaderboard
   getLeaderboard: () => req<{ leaderboard: LeaderboardEntry[] }>("/leaderboard"),
 
@@ -185,4 +188,16 @@ export interface AnalysisResult {
   moveQuality: string;
   reviewTitle: string;
   reviewCommentary: string;
+}
+
+export interface ActiveGame {
+  id: string;
+  whitePlayerId: string;
+  blackPlayerId: string | null;
+  fen: string;
+  status: string;
+  updatedAt: string;
+  createdAt: string;
+  whitePlayer: { nickname: string; avatarColor: string };
+  blackPlayer: { nickname: string; avatarColor: string };
 }
