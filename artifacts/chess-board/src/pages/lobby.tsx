@@ -354,7 +354,7 @@ export default function LobbyPage() {
           </div>
 
           {activeGamesLoading && activeGames.length === 0 ? (
-            <div className="text-sm text-muted-foreground text-center py-4">Loading live games…</div>
+            <div className="text-sm text-muted-foreground text-center py-4">Looking for live games…</div>
           ) : activeGames.length === 0 ? (
             <Card className="bg-card border-border">
               <CardContent className="p-6 text-center text-muted-foreground text-sm">
@@ -362,52 +362,46 @@ export default function LobbyPage() {
                 No active games right now. Be the first to play!
               </CardContent>
             </Card>
-          ) : (
-            <div className="space-y-2">
-              {activeGames.map(game => (
-                <Card key={game.id} className="bg-card border-border hover:border-primary/30 transition-colors">
-                  <CardContent className="p-3 flex items-center gap-3">
-                    {/* Players */}
-                    <div className="flex-1 flex items-center gap-2 min-w-0">
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <div
-                          className="w-6 h-6 rounded-full shrink-0 flex items-center justify-center text-[10px] font-bold text-white"
-                          style={{ background: game.whitePlayer.avatarColor }}
-                        >
-                          {game.whitePlayer.nickname.charAt(0).toUpperCase()}
+          ) : (() => {
+            const g = activeGames[0];
+            return (
+              <Link href={`/spectate/${g.id}`}>
+                <Card className="bg-card border-border hover:border-red-500/40 transition-all cursor-pointer group">
+                  <CardContent className="p-5 flex items-center gap-4">
+                    {/* Player avatars + names */}
+                    <div className="flex-1 flex items-center gap-3 min-w-0">
+                      <div className="flex flex-col items-center gap-0.5 min-w-0">
+                        <div className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm text-white shrink-0"
+                          style={{ background: g.whitePlayer.avatarColor }}>
+                          {g.whitePlayer.nickname.charAt(0).toUpperCase()}
                         </div>
-                        <span className="text-sm font-medium truncate max-w-[80px]">{game.whitePlayer.nickname}</span>
+                        <span className="text-[11px] text-muted-foreground truncate max-w-[64px]">{g.whitePlayer.nickname}</span>
                       </div>
-                      <span className="text-xs text-muted-foreground shrink-0">vs</span>
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <div
-                          className="w-6 h-6 rounded-full shrink-0 flex items-center justify-center text-[10px] font-bold text-white"
-                          style={{ background: game.blackPlayer.avatarColor }}
-                        >
-                          {game.blackPlayer.nickname.charAt(0).toUpperCase()}
+                      <div className="flex flex-col items-center gap-1 shrink-0">
+                        <span className="text-lg font-bold text-muted-foreground">vs</span>
+                        {activeGames.length > 1 && (
+                          <span className="text-[10px] text-muted-foreground">+{activeGames.length - 1} more</span>
+                        )}
+                      </div>
+                      <div className="flex flex-col items-center gap-0.5 min-w-0">
+                        <div className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm text-white shrink-0"
+                          style={{ background: g.blackPlayer.avatarColor }}>
+                          {g.blackPlayer.nickname.charAt(0).toUpperCase()}
                         </div>
-                        <span className="text-sm font-medium truncate max-w-[80px]">{game.blackPlayer.nickname}</span>
+                        <span className="text-[11px] text-muted-foreground truncate max-w-[64px]">{g.blackPlayer.nickname}</span>
                       </div>
                     </div>
 
-                    {/* Live badge */}
-                    <span className="shrink-0 flex items-center gap-1 text-[10px] font-semibold text-red-500">
-                      <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
-                      LIVE
-                    </span>
-
-                    {/* Watch button */}
-                    <Link href={`/spectate/${game.id}`}>
-                      <Button size="sm" variant="outline" className="shrink-0 h-7 px-3 text-xs gap-1">
-                        <Eye className="w-3 h-3" />
-                        Watch
-                      </Button>
-                    </Link>
+                    {/* Watch Now CTA */}
+                    <Button className="shrink-0 gap-2 bg-red-600 hover:bg-red-700 text-white group-hover:scale-105 transition-transform">
+                      <Eye className="w-4 h-4" />
+                      Watch Now
+                    </Button>
                   </CardContent>
                 </Card>
-              ))}
-            </div>
-          )}
+              </Link>
+            );
+          })()}
         </div>
 
         <div>
