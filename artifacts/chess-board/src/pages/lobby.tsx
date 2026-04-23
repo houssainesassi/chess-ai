@@ -8,7 +8,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { api, type FriendData, type LeaderboardEntry, type Profile, type ActiveGame } from "@/lib/api";
 import {
   Globe2, Bot, UserPlus, Clock, Swords, Search, Check, X,
-  ExternalLink, ChevronDown, ChevronUp, Loader2, Users, Radio, Eye,
+  ExternalLink, ChevronDown, ChevronUp, Loader2, Users, Eye,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { io, Socket } from "socket.io-client";
@@ -34,7 +34,6 @@ export default function LobbyPage() {
   const searchTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const [activeGames, setActiveGames] = useState<ActiveGame[]>([]);
-  const [activeGamesLoading, setActiveGamesLoading] = useState(false);
 
   const [isMatchmaking, setIsMatchmaking] = useState(false);
   const [matchmakingStatus, setMatchmakingStatus] = useState("Searching for opponent...");
@@ -42,14 +41,11 @@ export default function LobbyPage() {
   const matchmakingSocketRef = useRef<Socket | null>(null);
 
   const fetchActiveGames = async () => {
-    setActiveGamesLoading(true);
     try {
       const res = await api.getActiveGames();
       setActiveGames(res.games);
     } catch {
       setActiveGames([]);
-    } finally {
-      setActiveGamesLoading(false);
     }
   };
 
@@ -241,6 +237,9 @@ export default function LobbyPage() {
 
   const totalPending = friendData.pendingIn.length + friendData.pendingOut.length;
 
+  const getPlayerActiveGame = (userId: string) =>
+    activeGames.find(g => g.whitePlayerId === userId || g.blackPlayerId === userId);
+
   return (
     <div className="p-4 md:p-8 max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
 
@@ -331,77 +330,6 @@ export default function LobbyPage() {
               </div>
             </CardContent>
           </Card>
-        </div>
-
-        {/* Live Games */}
-        <div>
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <h2 className="text-xl font-bold">Watch Live</h2>
-              {activeGames.length > 0 && (
-                <span className="flex items-center gap-1 text-xs font-semibold text-red-500 bg-red-500/10 px-2 py-0.5 rounded-full">
-                  <Radio className="w-2.5 h-2.5 animate-pulse" />
-                  {activeGames.length} LIVE
-                </span>
-              )}
-            </div>
-            <button
-              onClick={fetchActiveGames}
-              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-            >
-              Refresh
-            </button>
-          </div>
-
-          {activeGamesLoading && activeGames.length === 0 ? (
-            <div className="text-sm text-muted-foreground text-center py-4">Looking for live games…</div>
-          ) : activeGames.length === 0 ? (
-            <Card className="bg-card border-border">
-              <CardContent className="p-6 text-center text-muted-foreground text-sm">
-                <Eye className="w-8 h-8 mx-auto mb-2 opacity-30" />
-                No active games right now. Be the first to play!
-              </CardContent>
-            </Card>
-          ) : (() => {
-            const g = activeGames[0];
-            return (
-              <Link href={`/spectate/${g.id}`}>
-                <Card className="bg-card border-border hover:border-red-500/40 transition-all cursor-pointer group">
-                  <CardContent className="p-5 flex items-center gap-4">
-                    {/* Player avatars + names */}
-                    <div className="flex-1 flex items-center gap-3 min-w-0">
-                      <div className="flex flex-col items-center gap-0.5 min-w-0">
-                        <div className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm text-white shrink-0"
-                          style={{ background: g.whitePlayer.avatarColor }}>
-                          {g.whitePlayer.nickname.charAt(0).toUpperCase()}
-                        </div>
-                        <span className="text-[11px] text-muted-foreground truncate max-w-[64px]">{g.whitePlayer.nickname}</span>
-                      </div>
-                      <div className="flex flex-col items-center gap-1 shrink-0">
-                        <span className="text-lg font-bold text-muted-foreground">vs</span>
-                        {activeGames.length > 1 && (
-                          <span className="text-[10px] text-muted-foreground">+{activeGames.length - 1} more</span>
-                        )}
-                      </div>
-                      <div className="flex flex-col items-center gap-0.5 min-w-0">
-                        <div className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm text-white shrink-0"
-                          style={{ background: g.blackPlayer.avatarColor }}>
-                          {g.blackPlayer.nickname.charAt(0).toUpperCase()}
-                        </div>
-                        <span className="text-[11px] text-muted-foreground truncate max-w-[64px]">{g.blackPlayer.nickname}</span>
-                      </div>
-                    </div>
-
-                    {/* Watch Now CTA */}
-                    <Button className="shrink-0 gap-2 bg-red-600 hover:bg-red-700 text-white group-hover:scale-105 transition-transform">
-                      <Eye className="w-4 h-4" />
-                      Watch Now
-                    </Button>
-                  </CardContent>
-                </Card>
-              </Link>
-            );
-          })()}
         </div>
 
         <div>
@@ -608,15 +536,24 @@ export default function LobbyPage() {
                             </div>
                           </Link>
                           <div className="flex items-center gap-1 shrink-0">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-7 text-xs gap-1"
-                              onClick={() => challengePlayer(friend.userId, true)}
-                            >
-                              <Swords className="w-3 h-3" />
-                              Challenge
-                            </Button>
+                            {(() => { const ag = getPlayerActiveGame(friend.userId); return ag ? (
+                              <Link href={`/spectate/${ag.id}`}>
+                                <Button size="sm" variant="outline" className="h-7 text-xs gap-1 border-red-500/40 text-red-500 hover:bg-red-500/10">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                                  Watch
+                                </Button>
+                              </Link>
+                            ) : (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 text-xs gap-1"
+                                onClick={() => challengePlayer(friend.userId, true)}
+                              >
+                                <Swords className="w-3 h-3" />
+                                Challenge
+                              </Button>
+                            ); })()}
                             <Link href={`/profile/${friend.userId}`}>
                               <Button size="icon" variant="ghost" className="h-7 w-7">
                                 <ExternalLink className="w-3 h-3" />
@@ -657,15 +594,24 @@ export default function LobbyPage() {
                           </div>
                         </Link>
                         <div className="flex items-center gap-1 shrink-0">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-7 text-xs gap-1"
-                            onClick={() => challengePlayer(player.userId, status === "friends")}
-                          >
-                            <Swords className="w-3 h-3" />
-                            Play
-                          </Button>
+                          {(() => { const ag = getPlayerActiveGame(player.userId); return ag ? (
+                            <Link href={`/spectate/${ag.id}`}>
+                              <Button size="sm" variant="outline" className="h-7 text-xs gap-1 border-red-500/40 text-red-500 hover:bg-red-500/10">
+                                <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                                Watch
+                              </Button>
+                            </Link>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-7 text-xs gap-1"
+                              onClick={() => challengePlayer(player.userId, status === "friends")}
+                            >
+                              <Swords className="w-3 h-3" />
+                              Play
+                            </Button>
+                          ); })()}
                           {status === "none" && (
                             <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => sendFriendRequest(player.userId)} title="Add friend">
                               <UserPlus className="w-3 h-3" />
