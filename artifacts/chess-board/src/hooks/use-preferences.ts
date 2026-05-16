@@ -18,6 +18,19 @@ export interface BoardTheme {
 
 export const BOARD_THEMES: BoardTheme[] = [
   {
+    id: "chessdotcom-blue",
+    name: "Chess.com Blue",
+    light: "#dee3e6",
+    dark: "#8ca2ad",
+    coordOnLight: "#8ca2ad",
+    coordOnDark: "#dee3e6",
+    highlight: "rgba(246,246,105,0.72)",
+    lmLight: "rgba(205,209,111,0.70)",
+    lmDark: "rgba(170,162,58,0.80)",
+    dotColor: "rgba(0,0,0,0.18)",
+    ringColor: "rgba(0,0,0,0.22)",
+  },
+  {
     id: "classic-green",
     name: "Classic Green",
     light: "#eeeed2",
@@ -512,7 +525,7 @@ export interface Preferences {
 }
 
 export function usePreferences(): Preferences {
-  const [themeId, _setThemeId] = useState<string>(() => load(KEY_THEME, "classic-green"));
+  const [themeId, _setThemeId] = useState<string>(() => load(KEY_THEME, "chessdotcom-blue"));
   const [soundPackId, _setSoundPackId] = useState<string>(() => load(KEY_SOUND, "classic"));
   const ctxRef = useRef<AudioContext | null>(null);
 

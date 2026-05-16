@@ -9,6 +9,8 @@ import {
   ArrowLeft, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
   BarChart2, Star, Volume2, VolumeX, Loader2, RefreshCw,
 } from "lucide-react";
+import { usePreferences } from "@/hooks/use-preferences";
+import { ChessBoard } from "@/components/chess-board";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 
 // ── Quality meta ──────────────────────────────────────────────────────────────
@@ -20,13 +22,6 @@ const QUALITY_META: Record<string, { label: string; color: string; icon: string;
   inaccuracy: { label: "Inaccuracy",  color: "text-yellow-400",  icon: "▲",  bg: "bg-yellow-500/20" },
   mistake:    { label: "Mistake",     color: "text-orange-400",  icon: "✖",  bg: "bg-orange-500/20" },
   blunder:    { label: "Blunder",     color: "text-red-400",     icon: "??", bg: "bg-red-500/20" },
-};
-
-// ── Piece symbols ─────────────────────────────────────────────────────────────
-
-const PIECE_SYMBOLS: Record<string, string> = {
-  P: "♙", N: "♘", B: "♗", R: "♖", Q: "♕", K: "♔",
-  p: "♟", n: "♞", b: "♝", r: "♜", q: "♛", k: "♚",
 };
 
 // ── Eval bar ──────────────────────────────────────────────────────────────────
@@ -52,99 +47,6 @@ function EvalBar({ score, isMate, mateIn }: { score: number; isMate?: boolean; m
   );
 }
 
-// ── Review board with arrow overlay ──────────────────────────────────────────
-
-function ReviewBoard({
-  fen,
-  lastMove,
-  bestMoveUci,
-}: {
-  fen: string;
-  lastMove: { from: string; to: string } | null;
-  bestMoveUci?: string;
-}) {
-  const chess = new Chess(fen);
-  const board = chess.board();
-
-  const arrow = bestMoveUci && bestMoveUci.length >= 4 ? {
-    from: bestMoveUci.slice(0, 2),
-    to: bestMoveUci.slice(2, 4),
-  } : null;
-
-  const sqCenter = (sq: string) => {
-    const file = sq.charCodeAt(0) - 97;
-    const rank = 8 - parseInt(sq[1]);
-    return { x: file * 12.5 + 6.25, y: rank * 12.5 + 6.25 };
-  };
-
-  return (
-    <div className="relative w-full aspect-square">
-      <div className="w-full h-full flex flex-col border-2 border-border rounded overflow-hidden shadow-xl">
-        {board.map((row, i) => (
-          <div key={i} className="flex-1 flex">
-            {row.map((square, j) => {
-              const isLight = (i + j) % 2 === 0;
-              const file = String.fromCharCode(97 + j);
-              const rank = 8 - i;
-              const sq = `${file}${rank}`;
-              const isLast = lastMove && (lastMove.from === sq || lastMove.to === sq);
-              const isArrowTo = arrow?.to === sq;
-              const isArrowFrom = arrow?.from === sq;
-              const pieceKey = square
-                ? square.color === "w" ? square.type.toUpperCase() : square.type.toLowerCase()
-                : null;
-
-              return (
-                <div
-                  key={j}
-                  className={`flex-1 flex items-center justify-center relative select-none
-                    ${isLight ? "bg-[#f0d9b5]" : "bg-[#b58863]"}
-                    ${isLast ? "!bg-yellow-300/50" : ""}
-                    ${isArrowTo ? "after:absolute after:inset-0 after:bg-green-400/25" : ""}
-                    ${isArrowFrom ? "after:absolute after:inset-0 after:bg-green-400/15" : ""}`}
-                >
-                  {square && (
-                    <span className={`text-[clamp(1rem,5vw,3rem)] leading-none drop-shadow-md select-none z-10 relative
-                      ${square.color === "w" ? "text-white [text-shadow:0_1px_2px_rgba(0,0,0,0.9)]" : "text-[#1a1a1a] [text-shadow:0_1px_0_rgba(255,255,255,0.4)]"}`}>
-                      {pieceKey ? PIECE_SYMBOLS[pieceKey] : ""}
-                    </span>
-                  )}
-                  {j === 0 && <span className={`absolute top-0.5 left-0.5 text-[10px] font-bold z-20 ${isLight ? "text-[#b58863]" : "text-[#f0d9b5]"}`}>{rank}</span>}
-                  {i === 7 && <span className={`absolute bottom-0.5 right-0.5 text-[10px] font-bold z-20 ${isLight ? "text-[#b58863]" : "text-[#f0d9b5]"}`}>{file}</span>}
-                </div>
-              );
-            })}
-          </div>
-        ))}
-      </div>
-
-      {arrow && (
-        <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
-          <defs>
-            <marker id="arrowhead" markerWidth="5" markerHeight="5" refX="2.5" refY="2.5" orient="auto">
-              <path d="M0,0 L5,2.5 L0,5 Z" fill="rgba(34,197,94,0.9)" />
-            </marker>
-          </defs>
-          {(() => {
-            const from = sqCenter(arrow.from);
-            const to = sqCenter(arrow.to);
-            const dx = to.x - from.x; const dy = to.y - from.y;
-            const len = Math.sqrt(dx * dx + dy * dy);
-            const ux = dx / len; const uy = dy / len;
-            return (
-              <line
-                x1={from.x + ux * 3} y1={from.y + uy * 3}
-                x2={to.x - ux * 4} y2={to.y - uy * 4}
-                stroke="rgba(34,197,94,0.8)" strokeWidth="2.5"
-                markerEnd="url(#arrowhead)"
-              />
-            );
-          })()}
-        </svg>
-      )}
-    </div>
-  );
-}
 
 // ── Eval graph ────────────────────────────────────────────────────────────────
 
@@ -217,6 +119,8 @@ export default function HistoryReplayPage() {
   const { id } = useParams();
   const { token, user } = useAuth();
   const [, setLocation] = useLocation();
+
+  const { theme } = usePreferences();
 
   const [fens, setFens] = useState<string[]>([]);
   const [moves, setMoves] = useState<any[]>([]);
@@ -357,11 +261,22 @@ export default function HistoryReplayPage() {
 
       {/* Board + controls */}
       <div className="flex flex-col gap-3 min-w-0">
-        <ReviewBoard
-          fen={currentFen}
-          lastMove={lastMove}
-          bestMoveUci={currentReview?.topMoves?.[0]?.move}
-        />
+        <div className="w-full aspect-square">
+          <ChessBoard
+            fen={currentFen}
+            theme={theme}
+            lastMove={lastMove}
+            arrows={
+              currentReview?.topMoves?.[0]?.move?.length >= 4
+                ? [{
+                    from: currentReview.topMoves[0].move.slice(0, 2),
+                    to: currentReview.topMoves[0].move.slice(2, 4),
+                    color: "rgba(34,197,94,0.85)",
+                  }]
+                : []
+            }
+          />
+        </div>
 
         {/* Navigation */}
         <div className="flex gap-2 justify-center items-center flex-wrap">

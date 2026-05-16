@@ -1,72 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useLocation, Link } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
-import { usePreferences, type BoardTheme } from "@/hooks/use-preferences";
+import { usePreferences } from "@/hooks/use-preferences";
+import { ChessBoard } from "@/components/chess-board";
 import { Chess } from "chess.js";
 import { io, Socket } from "socket.io-client";
 import { ArrowLeft, Users, Radio, Eye } from "lucide-react";
 
-// ── Piece symbols ──────────────────────────────────────────────────────────────
-const SYM: Record<string, string> = {
-  P:"♙",N:"♘",B:"♗",R:"♖",Q:"♕",K:"♔",
-  p:"♟",n:"♞",b:"♝",r:"♜",q:"♛",k:"♚",
-};
-
-// ── Read-only board ────────────────────────────────────────────────────────────
-function SpectatorBoard({
-  fen,
-  lastMove,
-  theme,
-  flipped,
-}: {
-  fen: string;
-  lastMove: { from: string; to: string } | null;
-  theme: BoardTheme;
-  flipped: boolean;
-}) {
-  const chess = new Chess(fen);
-  const rawBoard = chess.board();
-  const board = flipped ? [...rawBoard].reverse().map(r => [...r].reverse()) : rawBoard;
-
-  const toSq = (i: number, j: number) => {
-    const file = String.fromCharCode(97 + (flipped ? 7 - j : j));
-    const rank = flipped ? i + 1 : 8 - i;
-    return `${file}${rank}`;
-  };
-
-  return (
-    <div className="w-full h-full flex flex-col border border-border rounded overflow-hidden shadow-xl">
-      {board.map((row, i) => (
-        <div key={i} className="flex-1 flex">
-          {row.map((square, j) => {
-            const light = (i + j) % 2 === 0;
-            const sq = toSq(i, j);
-            const lm = lastMove && (lastMove.from === sq || lastMove.to === sq);
-            const pk = square ? (square.color === "w" ? square.type.toUpperCase() : square.type) : null;
-            return (
-              <div
-                key={j}
-                className="flex-1 flex items-center justify-center relative select-none"
-                style={{ background: lm ? (light ? theme.lmLight : theme.lmDark) : (light ? theme.light : theme.dark) }}
-              >
-                {square && (
-                  <span className={`text-[clamp(1.2rem,4vw,3.5rem)] leading-none drop-shadow-md select-none
-                    ${square.color === "w" ? "text-white [text-shadow:0_1px_2px_rgba(0,0,0,0.9)]" : "text-[#1a1a1a] [text-shadow:0_1px_0_rgba(255,255,255,0.4)]"}`}>
-                    {pk ? SYM[pk] : ""}
-                  </span>
-                )}
-                {!flipped && j === 0 && <span className="absolute top-0.5 left-0.5 text-[9px] font-bold leading-none" style={{ color: light ? theme.coordOnLight : theme.coordOnDark }}>{8-i}</span>}
-                {!flipped && i === 7 && <span className="absolute bottom-0.5 right-0.5 text-[9px] font-bold leading-none" style={{ color: light ? theme.coordOnLight : theme.coordOnDark }}>{String.fromCharCode(97+j)}</span>}
-                {flipped && j === 7 && <span className="absolute top-0.5 right-0.5 text-[9px] font-bold leading-none" style={{ color: light ? theme.coordOnLight : theme.coordOnDark }}>{i+1}</span>}
-                {flipped && i === 0 && <span className="absolute bottom-0.5 left-0.5 text-[9px] font-bold leading-none" style={{ color: light ? theme.coordOnLight : theme.coordOnDark }}>{String.fromCharCode(104-j)}</span>}
-              </div>
-            );
-          })}
-        </div>
-      ))}
-    </div>
-  );
-}
 
 // ── Player bar ─────────────────────────────────────────────────────────────────
 function PlayerBar({
@@ -284,7 +224,7 @@ export default function SpectatePage() {
           className="w-full max-w-[min(90vw,90vh-120px)] shrink-0"
           style={{ aspectRatio: "1 / 1" }}
         >
-          <SpectatorBoard
+          <ChessBoard
             fen={fen}
             lastMove={lastMove}
             theme={theme}

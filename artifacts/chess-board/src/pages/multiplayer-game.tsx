@@ -12,131 +12,10 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { io, Socket } from "socket.io-client";
 import { Input } from "@/components/ui/input";
-import { usePreferences, type BoardTheme } from "@/hooks/use-preferences";
+import { usePreferences } from "@/hooks/use-preferences";
+import { ChessBoard } from "@/components/chess-board";
 import { CameraPopup } from "@/components/camera-overlay";
 
-// ── Pieces ────────────────────────────────────────────────────────────────────
-
-const SYM: Record<string, string> = {
-  P:"♙",N:"♘",B:"♗",R:"♖",Q:"♕",K:"♔",
-  p:"♟",n:"♞",b:"♝",r:"♜",q:"♛",k:"♚",
-};
-
-// ── Board ─────────────────────────────────────────────────────────────────────
-
-function MultiplayerBoard({
-  fen, onMove, isPlayerTurn, flipped, lastMove, theme,
-}: {
-  fen: string;
-  onMove: (from: string, to: string, promotion?: string) => void;
-  isPlayerTurn: boolean;
-  flipped: boolean;
-  lastMove: { from: string; to: string } | null;
-  theme: BoardTheme;
-}) {
-  const chess = new Chess(fen);
-  const rawBoard = chess.board();
-  const board = flipped ? [...rawBoard].reverse().map(row => [...row].reverse()) : rawBoard;
-  const [selected, setSelected] = useState<string | null>(null);
-  const [legalTargets, setLegalTargets] = useState<string[]>([]);
-  const [promo, setPromo] = useState<{ from: string; to: string } | null>(null);
-  const [hoveredSq, setHoveredSq] = useState<string | null>(null);
-
-  const toSq = (i: number, j: number) => {
-    const file = String.fromCharCode(97 + (flipped ? 7 - j : j));
-    const rank = flipped ? i + 1 : 8 - i;
-    return `${file}${rank}`;
-  };
-
-  const getCursor = (sq: string, square: any) => {
-    if (!isPlayerTurn || promo) return "cursor-default";
-    if (selected && legalTargets.includes(sq)) return "cursor-pointer";
-    if (square && square.color === chess.turn()) return "cursor-grab";
-    return "cursor-default";
-  };
-
-  const handleClick = (sq: string) => {
-    if (!isPlayerTurn || promo) return;
-    if (selected) {
-      if (legalTargets.includes(sq)) {
-        const piece = chess.get(selected as any);
-        const isP = piece?.type === "p" && ((piece.color === "w" && sq[1] === "8") || (piece.color === "b" && sq[1] === "1"));
-        if (isP) { setPromo({ from: selected, to: sq }); setSelected(null); setLegalTargets([]); }
-        else { onMove(selected, sq); setSelected(null); setLegalTargets([]); }
-      } else {
-        const p = chess.get(sq as any);
-        if (p && p.color === chess.turn()) { setSelected(sq); setLegalTargets(chess.moves({ square: sq as any, verbose: true }).map((m: any) => m.to)); }
-        else { setSelected(null); setLegalTargets([]); }
-      }
-    } else {
-      const p = chess.get(sq as any);
-      if (p && p.color === chess.turn()) { setSelected(sq); setLegalTargets(chess.moves({ square: sq as any, verbose: true }).map((m: any) => m.to)); }
-    }
-  };
-
-  return (
-    <div className="relative w-full h-full">
-      {promo && (
-        <div className="absolute inset-0 z-20 bg-black/80 flex items-center justify-center rounded">
-          <div className="bg-card border border-border rounded-xl p-4 flex flex-col items-center gap-3">
-            <p className="text-sm font-medium">Promote pawn to:</p>
-            <div className="flex gap-3">
-              {["q","r","b","n"].map(p => (
-                <button key={p} className="w-14 h-14 text-4xl bg-muted hover:bg-primary/20 rounded-lg transition-colors"
-                  onClick={() => { onMove(promo.from, promo.to, p); setPromo(null); }}>
-                  {SYM[chess.turn() === "w" ? p.toUpperCase() : p]}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-      <div className="w-full h-full flex flex-col border border-border rounded overflow-hidden shadow-xl">
-        {board.map((row, i) => (
-          <div key={i} className="flex-1 flex">
-            {row.map((square, j) => {
-              const light = (i + j) % 2 === 0;
-              const sq = toSq(i, j);
-              const sel = selected === sq;
-              const tgt = legalTargets.includes(sq);
-              const lm = lastMove && (lastMove.from === sq || lastMove.to === sq);
-              const pk = square ? (square.color === "w" ? square.type.toUpperCase() : square.type) : null;
-              const hovered = hoveredSq === sq;
-              return (
-                <div key={j}
-                  onClick={() => handleClick(sq)}
-                  onMouseEnter={() => setHoveredSq(sq)}
-                  onMouseLeave={() => setHoveredSq(null)}
-                  className={`flex-1 flex items-center justify-center relative select-none transition-all duration-150 ${getCursor(sq, square)}`}
-                  style={{ background: sel ? theme.highlight : lm && !sel ? (light ? theme.lmLight : theme.lmDark) : (light ? theme.light : theme.dark) }}>
-                  {tgt && !square && (
-                    <div className="absolute inset-[32%] rounded-full pointer-events-none" style={{ background: theme.dotColor }} />
-                  )}
-                  {tgt && square && (
-                    <div className="absolute inset-0 pointer-events-none" style={{ boxShadow: `inset 0 0 0 3px ${theme.ringColor}` }} />
-                  )}
-                  {hovered && !sel && !tgt && isPlayerTurn && square && square.color === chess.turn() && (
-                    <div className="absolute inset-0 pointer-events-none" style={{ background: "rgba(255,255,255,0.07)" }} />
-                  )}
-                  {square && (
-                    <span className={`text-[clamp(1.2rem,4vw,3.5rem)] leading-none drop-shadow-md select-none
-                      ${square.color === "w" ? "text-white [text-shadow:0_1px_2px_rgba(0,0,0,0.9)]" : "text-[#1a1a1a] [text-shadow:0_1px_0_rgba(255,255,255,0.4)]"}`}>
-                      {pk ? SYM[pk] : ""}
-                    </span>
-                  )}
-                  {!flipped && j === 0 && <span className="absolute top-0.5 left-0.5 text-[9px] font-bold leading-none" style={{ color: light ? theme.coordOnLight : theme.coordOnDark }}>{8-i}</span>}
-                  {!flipped && i === 7 && <span className="absolute bottom-0.5 right-0.5 text-[9px] font-bold leading-none" style={{ color: light ? theme.coordOnLight : theme.coordOnDark }}>{String.fromCharCode(97+j)}</span>}
-                  {flipped && j === 7 && <span className="absolute top-0.5 right-0.5 text-[9px] font-bold leading-none" style={{ color: light ? theme.coordOnLight : theme.coordOnDark }}>{i+1}</span>}
-                  {flipped && i === 0 && <span className="absolute bottom-0.5 left-0.5 text-[9px] font-bold leading-none" style={{ color: light ? theme.coordOnLight : theme.coordOnDark }}>{String.fromCharCode(104-j)}</span>}
-                </div>
-              );
-            })}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
 
 // ── Voice ─────────────────────────────────────────────────────────────────────
 
@@ -631,10 +510,10 @@ export default function MultiplayerGamePage() {
           className="w-full shrink-0"
           style={{ maxWidth: "min(100%, calc(100vh - 260px))", aspectRatio: "1" }}
         >
-          <MultiplayerBoard
+          <ChessBoard
             fen={fen}
-            onMove={mouseActive ? handleMove : () => {}}
-            isPlayerTurn={isMyTurn && mouseActive}
+            onMove={handleMove}
+            disabled={!isMyTurn || !mouseActive}
             flipped={flipped}
             lastMove={lastMove}
             theme={theme}
