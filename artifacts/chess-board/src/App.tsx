@@ -16,6 +16,9 @@ import HistoryReplayPage from "@/pages/history-replay";
 import SettingsPage from "@/pages/settings";
 import ProfilePage from "@/pages/profile";
 import { SocketNotificationProvider } from "@/hooks/use-socket-notifications";
+import { AIControlProvider } from "@/contexts/ai-control-context";
+import { AIControlWidget } from "@/components/ai-control/AIControlWidget";
+import { GlobalCursorOverlay } from "@/components/ai-control/GlobalCursorOverlay";
 
 const queryClient = new QueryClient();
 
@@ -55,16 +58,26 @@ function Router() {
   );
 }
 
+function AppInner() {
+  return (
+    <AIControlProvider>
+      <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+        <SocketNotificationProvider>
+          <Router />
+        </SocketNotificationProvider>
+        <GlobalCursorOverlay />
+        <AIControlWidget />
+      </WouterRouter>
+    </AIControlProvider>
+  );
+}
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <TooltipProvider>
-          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-            <SocketNotificationProvider>
-              <Router />
-            </SocketNotificationProvider>
-          </WouterRouter>
+          <AppInner />
           <Toaster />
         </TooltipProvider>
       </AuthProvider>
