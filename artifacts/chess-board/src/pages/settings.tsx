@@ -6,9 +6,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Trash2, Save, User, Volume2 } from "lucide-react";
+import { Trash2, Save, User, Volume2, Laugh, Mic2 } from "lucide-react";
 import { useLocation } from "wouter";
 import { usePreferences, BOARD_THEMES, SOUND_PACKS } from "@/hooks/use-preferences";
+import { useMemeAudio } from "@/hooks/use-meme-audio";
+import type { MemeEvent } from "@/lib/meme-audio/synth-reactions";
+import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
 
 const AVATAR_COLORS = [
   "#3b82f6", "#10b981", "#f59e0b", "#ef4444",
@@ -27,7 +31,15 @@ export default function SettingsPage() {
   const { user, token, logout } = useAuth();
   const { toast } = useToast();
   const [, setLocation] = useLocation();
-  const { theme, themeId, setThemeId, soundPackId, setSoundPackId, playMove, playCheck } = usePreferences();
+  const {
+    theme, themeId, setThemeId,
+    soundPackId, setSoundPackId,
+    playMove, playCheck,
+    memeMode, setMemeMode,
+    memeVolume, setMemeVolume,
+    commentatorMode, setCommentatorMode,
+  } = usePreferences();
+  const { play: playMeme } = useMemeAudio();
 
   const [nickname, setNickname] = useState("");
   const [country, setCountry] = useState("Other");
@@ -268,6 +280,96 @@ export default function SettingsPage() {
               Preview Check
             </Button>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* ── Meme Mode ── */}
+      <Card className="bg-card border-border">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Laugh className="w-5 h-5 text-yellow-400" />
+            Tunisian Meme Voice Mode
+          </CardTitle>
+          <CardDescription>
+            Plays funny audio reactions during key moments — queen captures, blunders, checkmate and more.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-5">
+
+          {/* ON / OFF toggle */}
+          <div className="flex items-center justify-between py-1">
+            <div>
+              <p className="font-medium text-sm">Enable Meme Mode</p>
+              <p className="text-xs text-muted-foreground">Reactions play for check, captures, wins&hellip;</p>
+            </div>
+            <Switch
+              checked={memeMode}
+              onCheckedChange={setMemeMode}
+              aria-label="Toggle meme mode"
+            />
+          </div>
+
+          {/* Volume slider */}
+          <div className={`space-y-2 transition-opacity ${memeMode ? "opacity-100" : "opacity-40 pointer-events-none"}`}>
+            <div className="flex items-center justify-between">
+              <Label className="text-sm">Volume</Label>
+              <span className="text-xs text-muted-foreground font-mono">{Math.round(memeVolume * 100)}%</span>
+            </div>
+            <Slider
+              min={0}
+              max={1}
+              step={0.05}
+              value={[memeVolume]}
+              onValueChange={([v]) => setMemeVolume(v)}
+            />
+          </div>
+
+          {/* Preview buttons */}
+          <div className={`space-y-2 transition-opacity ${memeMode ? "opacity-100" : "opacity-40 pointer-events-none"}`}>
+            <Label className="text-sm text-muted-foreground">Preview Reactions</Label>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {(
+                [
+                  { event: "check"         as MemeEvent, label: "Check",        emoji: "⚠️" },
+                  { event: "queen-capture" as MemeEvent, label: "Queen Cap.",   emoji: "🤯" },
+                  { event: "checkmate"     as MemeEvent, label: "Checkmate",    emoji: "💀" },
+                  { event: "illegal-move"  as MemeEvent, label: "Illegal",      emoji: "❌" },
+                  { event: "win"           as MemeEvent, label: "Win",          emoji: "🏆" },
+                  { event: "lose"          as MemeEvent, label: "Lose",         emoji: "😭" },
+                  { event: "blunder"       as MemeEvent, label: "Blunder",      emoji: "🤦" },
+                  { event: "promotion"     as MemeEvent, label: "Promotion",    emoji: "👑" },
+                ] as const
+              ).map(({ event, label, emoji }) => (
+                <Button
+                  key={event}
+                  size="sm"
+                  variant="outline"
+                  className="flex items-center gap-1.5 text-xs h-8"
+                  onClick={() => playMeme(event)}
+                >
+                  <span>{emoji}</span>{label}
+                </Button>
+              ))}
+            </div>
+          </div>
+
+          {/* Commentator mode */}
+          <div className={`flex items-center justify-between border-t border-border pt-4 transition-opacity ${memeMode ? "opacity-100" : "opacity-40 pointer-events-none"}`}>
+            <div className="flex items-center gap-2">
+              <Mic2 className="w-4 h-4 text-muted-foreground" />
+              <div>
+                <p className="font-medium text-sm">Commentator Mode</p>
+                <p className="text-xs text-muted-foreground">Shows big emoji + Tunisian meme text on screen</p>
+              </div>
+            </div>
+            <Switch
+              checked={commentatorMode}
+              onCheckedChange={setCommentatorMode}
+              disabled={!memeMode}
+              aria-label="Toggle commentator mode"
+            />
+          </div>
+
         </CardContent>
       </Card>
 

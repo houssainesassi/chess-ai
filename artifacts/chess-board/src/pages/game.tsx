@@ -9,6 +9,8 @@ import { useLocation } from "wouter";
 import { usePreferences } from "@/hooks/use-preferences";
 import { ChessBoard } from "@/components/chess-board";
 import { CameraPopup } from "@/components/camera-overlay";
+import { useMemeAudio, countMaterial } from "@/hooks/use-meme-audio";
+import { SpeakerAnimation, MemeReactionToast, useMemeReaction } from "@/components/meme-reaction";
 import {
   Select,
   SelectContent,
@@ -59,7 +61,9 @@ export default function GamePage() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [, setLocation] = useLocation();
-  const { theme, playMove, playCheck, playGameEnd } = usePreferences();
+  const { theme, playMove, playCheck, playGameEnd, commentatorMode } = usePreferences();
+  const { play: playMeme, isPlaying: memeIsPlaying } = useMemeAudio();
+  const { reactionState, showReaction } = useMemeReaction();
 
   const [gameState, setGameState] = useState<any>(null);
   const [moveHistory, setMoveHistory] = useState<any[]>([]);
@@ -94,10 +98,30 @@ export default function GamePage() {
   }, [moveHistory]);
 
   const triggerAiMove = useCallback(async () => {
+    // Snapshot player material BEFORE the AI moves (blunder detection)
+    const matBefore = gameState ? countMaterial(gameState.fen, playerColor) : -1;
     setAiThinking(true);
     try {
       const res = await apiPost("/api/game/ai-move", { depth: difficulty.depth });
       setGameState(res.gameState);
+
+      // ── Meme reactions for AI move result ──────────────────────────────────
+      const matAfter = countMaterial(res.gameState.fen, playerColor);
+      if (matBefore >= 0 && matBefore - matAfter >= 3) {
+        // Player lost ≥3 material points → previous move was a blunder
+        playMeme("blunder");
+        if (commentatorMode) showReaction("blunder");
+      } else if (res.gameState.isGameOver && res.gameState.isCheckmate) {
+        // AI checkmated the player → player loses
+        playMeme("checkmate");
+        playMeme("lose");
+        if (commentatorMode) showReaction("lose");
+      } else if (res.gameState.isCheck) {
+        playMeme("check");
+        if (commentatorMode) showReaction("check");
+      }
+      // ──────────────────────────────────────────────────────────────────────
+
       if (res.gameState.isGameOver) playGameEnd(false);
       else if (res.gameState.isCheck) playCheck();
       else playMove(false);
@@ -105,26 +129,62 @@ export default function GamePage() {
     } catch (err: any) {
       toast({ title: err.message || "AI move failed", variant: "destructive" });
     } finally { setAiThinking(false); }
-  }, [difficulty.depth, refresh, playMove, playCheck, playGameEnd]);
+  }, [difficulty.depth, gameState, playerColor, refresh, playMove, playCheck, playGameEnd, playMeme, commentatorMode, showReaction]);
 
   const handleMove = useCallback(async (from: string, to: string, promotion?: string) => {
     if (moving || aiThinking || !gameState) return;
     const chess = new Chess(gameState.fen);
     if (chess.turn() !== playerColor) return;
-    const isCapture = !!chess.get(to as any);
+
+    // ── Pre-move meme detection ───────────────────────────────────────────────
+    const targetPiece  = chess.get(to as any);
+    const movingPiece  = chess.get(from as any);
+    const isQueenCapture = !!targetPiece && targetPiece.type === "q";
+    // Promotion: explicit promo param OR pawn reaching the last rank
+    const isPromotion  = !!promotion || (
+      movingPiece?.type === "p" && (to[1] === "8" || to[1] === "1")
+    );
+    const isCapture    = !!targetPiece;
+    // ─────────────────────────────────────────────────────────────────────────
+
     setMoving(true);
     try {
       const res = await apiPost("/api/game/move", { move: promotion ? `${from}${to}${promotion}` : `${from}${to}`, source: "ui" });
       setGameState(res.gameState);
-      // Sound feedback
+
+      // ── Meme reactions for player move result ─────────────────────────────
+      if (isQueenCapture) {
+        playMeme("queen-capture");
+        if (commentatorMode) showReaction("queen-capture");
+      } else if (isPromotion) {
+        playMeme("promotion");
+        if (commentatorMode) showReaction("promotion");
+      } else if (res.gameState.isGameOver && res.gameState.isCheckmate) {
+        // Player checkmated the AI → player wins
+        playMeme("checkmate");
+        playMeme("win");
+        if (commentatorMode) showReaction("win");
+      } else if (res.gameState.isCheck) {
+        playMeme("check");
+        if (commentatorMode) showReaction("check");
+      }
+      // ─────────────────────────────────────────────────────────────────────
+
+      // Regular sound feedback (always plays regardless of meme mode)
       if (res.gameState.isGameOver) playGameEnd(res.gameState.isCheckmate && chess.turn() !== playerColor);
       else if (res.gameState.isCheck) playCheck();
       else playMove(isCapture);
+
       await refresh();
       if (!res.gameState.isGameOver) setTimeout(triggerAiMove, 300);
-    } catch { toast({ title: "Invalid move", variant: "destructive" }); }
+    } catch {
+      // Invalid move
+      playMeme("illegal-move");
+      if (commentatorMode) showReaction("illegal-move");
+      toast({ title: "Invalid move", variant: "destructive" });
+    }
     finally { setMoving(false); }
-  }, [moving, aiThinking, gameState, playerColor, triggerAiMove, refresh, playMove, playCheck, playGameEnd]);
+  }, [moving, aiThinking, gameState, playerColor, triggerAiMove, refresh, playMove, playCheck, playGameEnd, playMeme, commentatorMode, showReaction]);
 
   const handleUndo = async () => {
     if (aiThinking || moving) return;
@@ -387,6 +447,10 @@ export default function GamePage() {
           </div>
         </div>
       )}
+
+      {/* ── Meme Mode overlays (fixed, pointer-events-none) ── */}
+      <SpeakerAnimation isPlaying={memeIsPlaying} />
+      <MemeReactionToast {...reactionState} />
     </div>
   );
 }

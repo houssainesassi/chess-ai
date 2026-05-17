@@ -15,6 +15,8 @@ import { Input } from "@/components/ui/input";
 import { usePreferences } from "@/hooks/use-preferences";
 import { ChessBoard } from "@/components/chess-board";
 import { CameraPopup } from "@/components/camera-overlay";
+import { useMemeAudio, countMaterial } from "@/hooks/use-meme-audio";
+import { SpeakerAnimation, MemeReactionToast, useMemeReaction } from "@/components/meme-reaction";
 
 
 // ── Voice ─────────────────────────────────────────────────────────────────────
@@ -41,7 +43,9 @@ export default function MultiplayerGamePage() {
   const { token, user } = useAuth();
   const { toast } = useToast();
   const [, setLocation] = useLocation();
-  const { theme, playMove, playCheck, playGameEnd } = usePreferences();
+  const { theme, playMove, playCheck, playGameEnd, commentatorMode } = usePreferences();
+  const { play: playMeme, isPlaying: memeIsPlaying } = useMemeAudio();
+  const { reactionState, showReaction } = useMemeReaction();
 
   const [game, setGame] = useState<any>(null);
   const [opponentProfile, setOpponentProfile] = useState<{ nickname: string; avatarColor: string; country?: string } | null>(null);
@@ -82,7 +86,16 @@ export default function MultiplayerGamePage() {
     const moveStr = promotion ? `${from}${to}${promotion}` : `${from}${to}`;
     try {
       const currentGame = await fetch(`/api/games/${id}`, { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json()).catch(() => null);
-      const isCapture = currentGame ? !!new Chess(currentGame.fen || "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1").get(to as any) : false;
+      const fen = currentGame?.fen || "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+      const boardChess  = new Chess(fen);
+      const targetPiece = boardChess.get(to as any);
+      const movingPiece = boardChess.get(from as any);
+      const isQueenCapture = !!targetPiece && targetPiece.type === "q";
+      const isPromotion    = !!promotion || (
+        movingPiece?.type === "p" && (to[1] === "8" || to[1] === "1")
+      );
+      const isCapture = !!targetPiece;
+
       const res = await fetch(`/api/games/${id}/move`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
@@ -91,12 +104,34 @@ export default function MultiplayerGamePage() {
       if (!res.ok) throw new Error("Invalid move");
       const updated = await res.json();
       setGame((prev: any) => prev ? { ...prev, ...updated, ...updated.gameState } : updated);
-      // Sound feedback
+
+      // ── Meme reactions ────────────────────────────────────────────────────
+      if (isQueenCapture) {
+        playMeme("queen-capture");
+        if (commentatorMode) showReaction("queen-capture");
+      } else if (isPromotion) {
+        playMeme("promotion");
+        if (commentatorMode) showReaction("promotion");
+      } else if (updated.isCheckmate) {
+        playMeme("checkmate");
+        playMeme("win");
+        if (commentatorMode) showReaction("win");
+      } else if (updated.isCheck) {
+        playMeme("check");
+        if (commentatorMode) showReaction("check");
+      }
+      // ─────────────────────────────────────────────────────────────────────
+
+      // Regular sound feedback
       if (updated.isCheckmate || updated.isDraw || updated.isStalemate) playGameEnd(true);
       else if (updated.isCheck) playCheck();
       else playMove(isCapture);
-    } catch { toast({ title: "Invalid Move", variant: "destructive" }); }
-  }, [id, token, toast, playMove, playCheck, playGameEnd]);
+    } catch {
+      playMeme("illegal-move");
+      if (commentatorMode) showReaction("illegal-move");
+      toast({ title: "Invalid Move", variant: "destructive" });
+    }
+  }, [id, token, toast, playMove, playCheck, playGameEnd, playMeme, commentatorMode, showReaction]);
 
   const handleCameraMove = useCallback((uciMove: string, _source: "hand" | "eye") => {
     const from = uciMove.slice(0, 2);
@@ -143,9 +178,22 @@ export default function MultiplayerGamePage() {
     sock.on("roomUpdate", (engineState: any) => {
       setGame((prev: any) => {
         if (prev && engineState.fen && engineState.fen !== prev.fen) {
-          if (engineState.isCheckmate || engineState.isDraw || engineState.isStalemate) playGameEnd(false);
-          else if (engineState.isCheck) playCheck();
-          else playMove(false);
+          // Meme reactions for OPPONENT's move (state changes from their side)
+          if (engineState.isCheckmate) {
+            // Opponent checkmated us → we lose
+            playMeme("checkmate");
+            playMeme("lose");
+            if (commentatorMode) showReaction("lose");
+            playGameEnd(false);
+          } else if (engineState.isDraw || engineState.isStalemate) {
+            playGameEnd(false);
+          } else if (engineState.isCheck) {
+            playMeme("check");
+            if (commentatorMode) showReaction("check");
+            playCheck();
+          } else {
+            playMove(false);
+          }
         }
         return prev ? { ...prev, ...engineState } : engineState;
       });
@@ -715,6 +763,10 @@ export default function MultiplayerGamePage() {
           onClose={() => setCameraOpen(false)}
         />
       )}
+
+      {/* ── Meme Mode overlays ── */}
+      <SpeakerAnimation isPlaying={memeIsPlaying} />
+      <MemeReactionToast {...reactionState} />
     </div>
   );
 }

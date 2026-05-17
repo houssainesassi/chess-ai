@@ -500,8 +500,11 @@ const SOUND_FNS: Record<string, {
 
 // ── Storage keys ──────────────────────────────────────────────────────────────
 
-const KEY_THEME = "chess_theme_id";
-const KEY_SOUND = "chess_sound_id";
+const KEY_THEME       = "chess_theme_id";
+const KEY_SOUND       = "chess_sound_id";
+const KEY_MEME        = "chess_meme_mode";
+const KEY_MEME_VOL    = "chess_meme_vol";
+const KEY_COMMENTATOR = "chess_commentator_mode";
 
 function load(key: string, fallback: string): string {
   try { return localStorage.getItem(key) || fallback; } catch { return fallback; }
@@ -522,11 +525,21 @@ export interface Preferences {
   playMove: (isCapture?: boolean) => void;
   playCheck: () => void;
   playGameEnd: (won?: boolean) => void;
+  /** Tunisian Meme Voice Mode */
+  memeMode: boolean;
+  setMemeMode: (v: boolean) => void;
+  memeVolume: number;
+  setMemeVolume: (v: number) => void;
+  commentatorMode: boolean;
+  setCommentatorMode: (v: boolean) => void;
 }
 
 export function usePreferences(): Preferences {
   const [themeId, _setThemeId] = useState<string>(() => load(KEY_THEME, "chessdotcom-blue"));
   const [soundPackId, _setSoundPackId] = useState<string>(() => load(KEY_SOUND, "classic"));
+  const [memeMode, _setMemeMode] = useState<boolean>(() => load(KEY_MEME, "false") === "true");
+  const [memeVolume, _setMemeVolume] = useState<number>(() => parseFloat(load(KEY_MEME_VOL, "0.7")));
+  const [commentatorMode, _setCommentatorMode] = useState<boolean>(() => load(KEY_COMMENTATOR, "false") === "true");
   const ctxRef = useRef<AudioContext | null>(null);
 
   const getCtx = useCallback((): AudioContext | null => {
@@ -551,6 +564,21 @@ export function usePreferences(): Preferences {
     save(KEY_SOUND, id);
   }, []);
 
+  const setMemeMode = useCallback((v: boolean) => {
+    _setMemeMode(v);
+    save(KEY_MEME, String(v));
+  }, []);
+
+  const setMemeVolume = useCallback((v: number) => {
+    _setMemeVolume(v);
+    save(KEY_MEME_VOL, String(v));
+  }, []);
+
+  const setCommentatorMode = useCallback((v: boolean) => {
+    _setCommentatorMode(v);
+    save(KEY_COMMENTATOR, String(v));
+  }, []);
+
   const fns = useCallback(
     () => SOUND_FNS[soundPackId] || SOUND_FNS.classic,
     [soundPackId]
@@ -572,5 +600,12 @@ export function usePreferences(): Preferences {
 
   const theme = BOARD_THEMES.find((t) => t.id === themeId) ?? BOARD_THEMES[0];
 
-  return { theme, themeId, setThemeId, soundPackId, setSoundPackId, playMove, playCheck, playGameEnd };
+  return {
+    theme, themeId, setThemeId,
+    soundPackId, setSoundPackId,
+    playMove, playCheck, playGameEnd,
+    memeMode, setMemeMode,
+    memeVolume, setMemeVolume,
+    commentatorMode, setCommentatorMode,
+  };
 }
