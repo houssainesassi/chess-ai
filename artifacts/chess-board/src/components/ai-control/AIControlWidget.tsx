@@ -73,25 +73,57 @@ export function AIControlWidget() {
     y: 80,
   }));
 
-  // Dragging
+  // Dragging — supports both mouse and touch
   const dragRef = useRef<{ sx: number; sy: number; ox: number; oy: number } | null>(null);
-  const onDragStart = useCallback((e: React.MouseEvent) => {
-    dragRef.current = { sx: e.clientX, sy: e.clientY, ox: pos.x, oy: pos.y };
-    e.preventDefault();
+
+  const startDrag = useCallback((clientX: number, clientY: number) => {
+    dragRef.current = { sx: clientX, sy: clientY, ox: pos.x, oy: pos.y };
   }, [pos]);
 
+  const onDragStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    startDrag(e.clientX, e.clientY);
+  }, [startDrag]);
+
+  const onTouchStart = useCallback((e: React.TouchEvent) => {
+    // Don't call preventDefault here — it blocks tap events on children
+    const t = e.touches[0];
+    startDrag(t.clientX, t.clientY);
+  }, [startDrag]);
+
   useEffect(() => {
+    const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+
     const onMove = (e: MouseEvent) => {
       if (!dragRef.current) return;
       setPos({
-        x: Math.max(0, Math.min(window.innerWidth - 290, dragRef.current.ox + e.clientX - dragRef.current.sx)),
-        y: Math.max(0, Math.min(window.innerHeight - 60, dragRef.current.oy + e.clientY - dragRef.current.sy)),
+        x: clamp(dragRef.current.ox + e.clientX - dragRef.current.sx, 0, window.innerWidth - 290),
+        y: clamp(dragRef.current.oy + e.clientY - dragRef.current.sy, 0, window.innerHeight - 60),
+      });
+    };
+    const onTouchMove = (e: TouchEvent) => {
+      if (!dragRef.current) return;
+      e.preventDefault(); // prevent page scroll while dragging widget
+      const t = e.touches[0];
+      setPos({
+        x: clamp(dragRef.current.ox + t.clientX - dragRef.current.sx, 0, window.innerWidth - 290),
+        y: clamp(dragRef.current.oy + t.clientY - dragRef.current.sy, 0, window.innerHeight - 60),
       });
     };
     const onUp = () => { dragRef.current = null; };
+
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp);
-    return () => { window.removeEventListener("mousemove", onMove); window.removeEventListener("mouseup", onUp); };
+    window.addEventListener("touchmove", onTouchMove, { passive: false });
+    window.addEventListener("touchend", onUp);
+    window.addEventListener("touchcancel", onUp);
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+      window.removeEventListener("touchmove", onTouchMove);
+      window.removeEventListener("touchend", onUp);
+      window.removeEventListener("touchcancel", onUp);
+    };
   }, []);
 
   // Camera + MediaPipe refs
@@ -378,10 +410,11 @@ export function AIControlWidget() {
       className="fixed z-[99999] w-72 bg-[#1a1a1a] border border-white/10 rounded-xl shadow-2xl select-none overflow-hidden"
       style={{ left: pos.x, top: pos.y }}
     >
-      {/* ── Header ── */}
+      {/* ── Header (drag handle — mouse + touch) ── */}
       <div
         onMouseDown={onDragStart}
-        className="flex items-center gap-2 px-3 py-2 bg-[#252525] border-b border-white/10 cursor-grab active:cursor-grabbing"
+        onTouchStart={onTouchStart}
+        className="flex items-center gap-2 px-3 py-2 bg-[#252525] border-b border-white/10 cursor-grab active:cursor-grabbing touch-none"
       >
         <GripHorizontal size={13} className="text-white/30 shrink-0" />
         <Activity size={13} className="text-[#81b64c] shrink-0" />

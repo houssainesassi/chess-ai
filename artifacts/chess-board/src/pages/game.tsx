@@ -326,91 +326,189 @@ export default function GamePage() {
     : isPlayerTurn ? "Your turn"
     : "";
 
-  return (
-    <div className="flex-1 flex flex-col min-h-0 overflow-hidden relative">
-
-      {/* ── Top bar: opponent ── */}
-      <div className="h-14 shrink-0 flex items-center px-3 gap-3 bg-card border-b border-border">
-        <button onClick={() => setGameStarted(false)} className="text-muted-foreground hover:text-foreground transition-colors mr-1">
-          <ArrowLeft className="w-5 h-5" />
-        </button>
-        <div className="w-9 h-9 bg-purple-500/20 rounded-full flex items-center justify-center shrink-0">
-          <Bot className="w-5 h-5 text-purple-400" />
-        </div>
-        <div className="flex flex-col min-w-0 flex-1">
-          <span className="font-bold text-sm leading-tight">Stockfish</span>
-          <span className="text-xs text-muted-foreground leading-tight">{difficulty.label} · {aiColor}</span>
-        </div>
-        {aiThinking && <Badge variant="secondary" className="animate-pulse text-xs shrink-0">Thinking…</Badge>}
-        {gameOver && (
-          <Badge variant={iWon ? "default" : "destructive"} className="shrink-0">
-            {gameState.isCheckmate ? (iWon ? "You won" : "You lost") : "Draw"}
-          </Badge>
-        )}
+  // Shared player/opponent cards + controls (used in both mobile and desktop sidebar)
+  const OpponentCard = (
+    <div className="flex items-center gap-3 px-3 h-14 shrink-0">
+      <button onClick={() => setGameStarted(false)} className="text-muted-foreground hover:text-foreground transition-colors mr-1 shrink-0">
+        <ArrowLeft className="w-5 h-5" />
+      </button>
+      <div className="w-9 h-9 bg-purple-500/20 rounded-full flex items-center justify-center shrink-0">
+        <Bot className="w-5 h-5 text-purple-400" />
       </div>
-
-      {/* ── Board fills remaining space ── */}
-      <div className="flex-1 min-h-0 flex items-center justify-center p-1 bg-background">
-        <div className="h-full aspect-square max-w-full">
-          <ChessBoard
-            fen={gameState.fen}
-            onMove={handleMove}
-            disabled={!isPlayerTurn || moving || aiThinking}
-            lastMove={gameState.lastMove}
-            theme={theme}
-          />
-        </div>
+      <div className="flex flex-col min-w-0 flex-1">
+        <span className="font-bold text-sm leading-tight">Stockfish</span>
+        <span className="text-xs text-muted-foreground leading-tight">{difficulty.label} · {aiColor}</span>
       </div>
-
-      {/* ── Voice transcript ── */}
-      {voiceActive && voiceTranscript && (
-        <div className="shrink-0 bg-primary/10 border-t border-primary/20 px-4 py-1.5 flex items-center gap-2 text-sm text-primary">
-          <Mic className="w-3 h-3 animate-pulse shrink-0" />
-          <span className="italic truncate">"{voiceTranscript}"</span>
-        </div>
+      {aiThinking && <Badge variant="secondary" className="animate-pulse text-xs shrink-0">Thinking…</Badge>}
+      {gameOver && (
+        <Badge variant={iWon ? "default" : "destructive"} className="shrink-0">
+          {gameState.isCheckmate ? (iWon ? "You won" : "You lost") : "Draw"}
+        </Badge>
       )}
+    </div>
+  );
 
-      {/* ── Bottom bar: me + controls ── */}
-      <div className="shrink-0 bg-card border-t border-border">
-        <div className="h-14 flex items-center px-3 gap-3">
-          <div className="w-9 h-9 bg-primary/20 rounded-full flex items-center justify-center font-bold text-primary text-sm shrink-0">
-            {(user?.username || "Y").charAt(0).toUpperCase()}
-          </div>
-          <div className="flex flex-col flex-1 min-w-0">
-            <span className="font-bold text-sm leading-tight">{user?.username || "You"}</span>
-            <span className="text-xs text-muted-foreground leading-tight">{myColor}</span>
-          </div>
-          {statusText && <Badge variant={gameState.isCheck && !gameOver ? "destructive" : isPlayerTurn ? "default" : "secondary"} className="shrink-0 text-xs">{statusText}</Badge>}
+  const ControlButtons = (
+    <div className="flex items-center gap-1">
+      {!gameOver && (
+        <>
+          <button onClick={handleUndo} disabled={moveHistory.length === 0 || aiThinking || moving}
+            className="p-2 rounded-lg hover:bg-muted disabled:opacity-40 transition-colors" title="Undo">
+            <RotateCcw className="w-4 h-4" />
+          </button>
+          <button onClick={() => setGameStarted(false)}
+            className="p-2 rounded-lg hover:bg-muted text-destructive transition-colors" title="Resign">
+            <Flag className="w-4 h-4" />
+          </button>
+          <button onClick={toggleVoice}
+            className={`p-2 rounded-lg transition-colors ${voiceActive ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`} title="Voice control">
+            {voiceActive ? <Mic className="w-4 h-4" /> : <MicOff className="w-4 h-4" />}
+          </button>
+          <button onClick={() => setCameraOpen(v => !v)}
+            className={`p-2 rounded-lg transition-colors ${cameraOpen ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`} title="Hand/eye camera">
+            <Camera className="w-4 h-4" />
+          </button>
+        </>
+      )}
+      {gameOver && (
+        <Button size="sm" onClick={() => startNewGame(playerColor)}>Play Again</Button>
+      )}
+    </div>
+  );
 
-          {/* Controls */}
-          <div className="flex items-center gap-1 ml-1">
-            {!gameOver && (
-              <>
-                <button onClick={handleUndo} disabled={moveHistory.length === 0 || aiThinking || moving}
-                  className="p-2 rounded-lg hover:bg-muted disabled:opacity-40 transition-colors" title="Undo">
-                  <RotateCcw className="w-4 h-4" />
-                </button>
-                <button onClick={() => setGameStarted(false)}
-                  className="p-2 rounded-lg hover:bg-muted text-destructive transition-colors" title="Resign">
-                  <Flag className="w-4 h-4" />
-                </button>
-                <button onClick={toggleVoice}
-                  className={`p-2 rounded-lg transition-colors ${voiceActive ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`} title="Voice">
-                  {voiceActive ? <Mic className="w-4 h-4" /> : <MicOff className="w-4 h-4" />}
-                </button>
-                <button onClick={() => setCameraOpen(v => !v)}
-                  className={`p-2 rounded-lg transition-colors ${cameraOpen ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`} title="Hand camera">
-                  <Camera className="w-4 h-4" />
-                </button>
-              </>
+  const MovesList = (
+    <div className="overflow-auto p-2 font-mono" ref={moveListRef}>
+      {moveHistory.length === 0 ? (
+        <div className="text-muted-foreground text-xs text-center py-6">No moves yet</div>
+      ) : (
+        Array.from({ length: Math.ceil(moveHistory.length / 2) }).map((_, i) => (
+          <div key={i} className="flex gap-1 px-1 py-0.5 hover:bg-muted/50 rounded text-xs">
+            <span className="w-6 text-muted-foreground text-right shrink-0">{i + 1}.</span>
+            <span className="flex-1 font-medium">{moveHistory[i * 2]?.san}</span>
+            <span className="flex-1 text-muted-foreground">{moveHistory[i * 2 + 1]?.san || ""}</span>
+          </div>
+        ))
+      )}
+    </div>
+  );
+
+  return (
+    <div className="flex-1 flex flex-col lg:flex-row min-h-0 overflow-hidden relative">
+
+      {/* ════════════════════════════════════════════════════════════
+          BOARD COLUMN — full width on mobile, fills height on desktop
+          ════════════════════════════════════════════════════════════ */}
+      <div className="flex-1 flex flex-col min-h-0 min-w-0 bg-[#1a1a1a] lg:bg-background">
+
+        {/* Top bar: opponent — visible on mobile only */}
+        <div className="lg:hidden border-b border-border bg-card shrink-0">
+          {OpponentCard}
+        </div>
+
+        {/* Board: square, centred, fills remaining height */}
+        <div className="flex-1 min-h-0 flex items-center justify-center p-2 lg:p-4">
+          <div
+            className="relative"
+            style={{ height: "min(100%, calc(100vw - 8px))", aspectRatio: "1 / 1", maxHeight: "min(calc(100vh - 130px), calc(100vw - 8px))" }}
+          >
+            <ChessBoard
+              fen={gameState.fen}
+              onMove={handleMove}
+              disabled={!isPlayerTurn || moving || aiThinking}
+              lastMove={gameState.lastMove}
+              theme={theme}
+            />
+          </div>
+        </div>
+
+        {/* Voice transcript bar */}
+        {voiceActive && voiceTranscript && (
+          <div className="shrink-0 bg-primary/10 border-t border-primary/20 px-4 py-1.5 flex items-center gap-2 text-sm text-primary">
+            <Mic className="w-3 h-3 animate-pulse shrink-0" />
+            <span className="italic truncate">"{voiceTranscript}"</span>
+          </div>
+        )}
+
+        {/* Bottom bar: me + controls — visible on mobile only */}
+        <div className="lg:hidden shrink-0 bg-card border-t border-border">
+          <div className="h-14 flex items-center px-3 gap-3">
+            <div className="w-9 h-9 bg-primary/20 rounded-full flex items-center justify-center font-bold text-primary text-sm shrink-0">
+              {(user?.username || "Y").charAt(0).toUpperCase()}
+            </div>
+            <div className="flex flex-col flex-1 min-w-0">
+              <span className="font-bold text-sm leading-tight">{user?.username || "You"}</span>
+              <span className="text-xs text-muted-foreground leading-tight">{myColor}</span>
+            </div>
+            {statusText && (
+              <Badge variant={gameState.isCheck && !gameOver ? "destructive" : isPlayerTurn ? "default" : "secondary"} className="shrink-0 text-xs">
+                {statusText}
+              </Badge>
             )}
-            <button onClick={() => setShowMoves(v => !v)}
-              className={`p-2 rounded-lg transition-colors ${showMoves ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`} title="Move list">
-              <List className="w-4 h-4" />
-            </button>
-            {gameOver && (
-              <Button size="sm" className="ml-1" onClick={() => startNewGame(playerColor)}>Again</Button>
-            )}
+            <div className="flex items-center gap-1 ml-1">
+              {ControlButtons}
+              <button onClick={() => setShowMoves(v => !v)}
+                className={`p-2 rounded-lg transition-colors ${showMoves ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}>
+                <List className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ════════════════════════════════════════════════════════════
+          DESKTOP SIDEBAR — hidden on mobile, shown on lg+
+          ════════════════════════════════════════════════════════════ */}
+      <div className="hidden lg:flex flex-col w-72 xl:w-80 shrink-0 bg-card border-l border-border">
+
+        {/* Opponent card */}
+        <div className="border-b border-border shrink-0">
+          {OpponentCard}
+        </div>
+
+        {/* Status badge */}
+        {statusText && (
+          <div className="px-3 py-2 border-b border-border shrink-0">
+            <Badge
+              variant={gameState.isCheck && !gameOver ? "destructive" : isPlayerTurn ? "default" : "secondary"}
+              className="w-full justify-center text-sm py-1"
+            >
+              {statusText}
+            </Badge>
+          </div>
+        )}
+
+        {/* Move list — always open on desktop, scrollable */}
+        <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+          <div className="flex items-center justify-between px-3 py-2 border-b border-border shrink-0">
+            <span className="text-sm font-bold text-foreground">Moves</span>
+            <span className="text-xs text-muted-foreground">{Math.ceil(moveHistory.length / 2)} turns</span>
+          </div>
+          <div className="flex-1 overflow-auto">
+            {MovesList}
+          </div>
+        </div>
+
+        {/* Voice transcript (desktop) */}
+        {voiceActive && voiceTranscript && (
+          <div className="shrink-0 bg-primary/10 border-t border-primary/20 px-3 py-2 flex items-center gap-2 text-sm text-primary">
+            <Mic className="w-3 h-3 animate-pulse shrink-0" />
+            <span className="italic truncate text-xs">"{voiceTranscript}"</span>
+          </div>
+        )}
+
+        {/* My player card + controls */}
+        <div className="border-t border-border shrink-0 p-3 space-y-3">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 bg-primary/20 rounded-full flex items-center justify-center font-bold text-primary text-sm shrink-0">
+              {(user?.username || "Y").charAt(0).toUpperCase()}
+            </div>
+            <div className="flex flex-col flex-1 min-w-0">
+              <span className="font-bold text-sm leading-tight">{user?.username || "You"}</span>
+              <span className="text-xs text-muted-foreground leading-tight">{myColor}</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            {ControlButtons}
           </div>
         </div>
       </div>
@@ -425,30 +523,18 @@ export default function GamePage() {
         />
       )}
 
-      {/* ── Move list overlay ── */}
+      {/* ── Move list overlay (mobile only, shown when toggled) ── */}
       {showMoves && (
-        <div className="absolute bottom-[57px] right-0 w-64 max-h-72 bg-card border border-border rounded-tl-xl shadow-2xl flex flex-col z-30">
+        <div className="lg:hidden absolute bottom-[57px] right-0 w-64 max-h-72 bg-card border border-border rounded-tl-xl shadow-2xl flex flex-col z-30">
           <div className="flex items-center justify-between px-3 py-2 border-b border-border shrink-0">
             <span className="text-sm font-bold">Moves ({Math.ceil(moveHistory.length / 2)})</span>
             <button onClick={() => setShowMoves(false)} className="text-muted-foreground hover:text-foreground"><X className="w-4 h-4" /></button>
           </div>
-          <div className="overflow-auto p-2 text-sm font-mono" ref={moveListRef}>
-            {moveHistory.length === 0 ? (
-              <div className="text-muted-foreground text-xs text-center py-4">No moves yet</div>
-            ) : (
-              Array.from({ length: Math.ceil(moveHistory.length / 2) }).map((_, i) => (
-                <div key={i} className="flex gap-1 px-1 py-0.5 hover:bg-muted/50 rounded text-xs">
-                  <span className="w-6 text-muted-foreground text-right">{i + 1}.</span>
-                  <span className="flex-1 font-medium">{moveHistory[i * 2]?.san}</span>
-                  <span className="flex-1 text-muted-foreground">{moveHistory[i * 2 + 1]?.san || ""}</span>
-                </div>
-              ))
-            )}
-          </div>
+          {MovesList}
         </div>
       )}
 
-      {/* ── Meme Mode overlays (fixed, pointer-events-none) ── */}
+      {/* ── Meme Mode overlays ── */}
       <SpeakerAnimation isPlaying={memeIsPlaying} />
       <MemeReactionToast {...reactionState} />
     </div>
