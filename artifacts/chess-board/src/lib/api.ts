@@ -92,7 +92,14 @@ export const api = {
   getActiveGames: () => req<{ games: ActiveGame[] }>("/games/active"),
 
   // Leaderboard
-  getLeaderboard: () => req<{ leaderboard: LeaderboardEntry[] }>("/leaderboard"),
+  getLeaderboard: (opts?: { mode?: "global" | "country" | "friends"; country?: string; friendIds?: string[] }) => {
+    const params = new URLSearchParams();
+    if (opts?.mode) params.set("mode", opts.mode);
+    if (opts?.country) params.set("country", opts.country);
+    if (opts?.friendIds?.length) params.set("friendIds", opts.friendIds.join(","));
+    const qs = params.toString();
+    return req<{ leaderboard: LeaderboardEntry[] }>(`/leaderboard${qs ? "?" + qs : ""}`);
+  },
 
   // Online status
   getStatusUsers: (token: string) => req<{ users: PlayerStatus[] }>("/status/users", { token }),
@@ -153,6 +160,8 @@ export interface Profile {
   bio?: string | null;
   avatarUrl?: string | null;
   avatarColor: string;
+  rating?: number;
+  gamesPlayed?: number;
   isOnline?: boolean;
   email?: string | null;
   createdAt?: string;
@@ -217,6 +226,7 @@ export interface LeaderboardEntry {
   country: string | null;
   avatarUrl: string | null;
   avatarColor: string;
+  rating: number;
   wins: number;
   losses: number;
   draws: number;
@@ -229,10 +239,18 @@ export interface Game {
   whitePlayerId: string;
   blackPlayerId: string | null;
   status: "waiting" | "active" | "completed";
+  gameMode: "ranked" | "casual";
   fen: string;
   winner: "white" | "black" | "draw" | null;
   pgn: string;
   moves: string[];
+  lastMove?: string | null;
+  moveHistory?: any[];
+  capturedPieces?: { white: string[]; black: string[] };
+  whiteRatingBefore?: number | null;
+  blackRatingBefore?: number | null;
+  whiteRatingChange?: number | null;
+  blackRatingChange?: number | null;
   createdAt: string;
   updatedAt: string;
 }

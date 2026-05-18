@@ -5,6 +5,7 @@ import { requireAuth } from "../middlewares/auth";
 import { gameRoomManager } from "../lib/game-room-manager";
 import { broadcastRoomUpdate, getSocketServer } from "../lib/socket-server";
 import { logger } from "../lib/logger";
+import { applyRatingUpdate } from "../lib/rating";
 
 const router = Router();
 
@@ -257,9 +258,14 @@ router.post("/games/:id/move", requireAuth, async (req, res) => {
       })
       .where(eq(chessGamesTable.id, id));
 
+    let ratingChanges: { whiteChange: number; blackChange: number } | null = null;
+    if (newStatus === "completed" && winner) {
+      ratingChanges = await applyRatingUpdate(id, winner as "white" | "black" | "draw");
+    }
+
     broadcastRoomUpdate(id, newState);
 
-    res.json({ success: true, gameState: newState, move: result.move });
+    res.json({ success: true, gameState: newState, move: result.move, ratingChanges });
   } catch (err) {
     logger.error({ err }, "Failed to make move");
     res.status(500).json({ error: "internal_error", message: "Failed to make move" });

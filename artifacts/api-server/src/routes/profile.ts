@@ -18,6 +18,8 @@ function formatProfile(u: typeof usersTable.$inferSelect) {
     bio: u.bio ?? null,
     avatarColor: u.avatarColor || "#3b82f6",
     avatarUrl: u.avatarUrl ?? null,
+    rating: u.rating ?? 800,
+    gamesPlayed: u.gamesPlayed ?? 0,
     isOnline: u.isOnline ?? false,
     createdAt: u.createdAt,
   };

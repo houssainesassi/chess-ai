@@ -36,9 +36,13 @@ export default function LobbyPage() {
   const [activeGames, setActiveGames] = useState<ActiveGame[]>([]);
 
   const [isMatchmaking, setIsMatchmaking] = useState(false);
+  const [selectedGameMode, setSelectedGameMode] = useState<"ranked" | "casual">("ranked");
   const [matchmakingStatus, setMatchmakingStatus] = useState("Searching for opponent...");
-  const [matchedOpponent, setMatchedOpponent] = useState<{ nickname: string; avatarColor: string; country?: string } | null>(null);
+  const [matchedOpponent, setMatchedOpponent] = useState<{ nickname: string; avatarColor: string; country?: string; rating?: number } | null>(null);
+  const [myMatchRating, setMyMatchRating] = useState<number | null>(null);
+  const [waitTime, setWaitTime] = useState(0);
   const matchmakingSocketRef = useRef<Socket | null>(null);
+  const waitTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const notifSocketRef = useRef<Socket | null>(null);
   const [pendingInvite, setPendingInvite] = useState<{
@@ -136,22 +140,28 @@ export default function LobbyPage() {
     }
   };
 
-  const startMatchmaking = () => {
+  const startMatchmaking = (mode: "ranked" | "casual") => {
     if (!user?.id) return;
     setIsMatchmaking(true);
-    setMatchmakingStatus("Searching for opponent...");
+    setSelectedGameMode(mode);
+    setMatchmakingStatus(`Finding a ${mode} game...`);
     setMatchedOpponent(null);
+    setMyMatchRating(null);
+    setWaitTime(0);
+
+    if (waitTimerRef.current) clearInterval(waitTimerRef.current);
+    waitTimerRef.current = setInterval(() => setWaitTime(t => t + 1), 1000);
 
     const socket = io({ path: "/api/socket.io", auth: { token } });
     matchmakingSocketRef.current = socket;
 
     socket.on("connect", () => {
       socket.emit("registerUser", { userId: user.id });
-      socket.emit("joinMatchmaking", { userId: user.id });
+      socket.emit("joinMatchmaking", { userId: user.id, gameMode: mode });
     });
 
-    socket.on("matchmakingQueued", ({ position }: { position: number }) => {
-      setMatchmakingStatus(`In queue (position ${position})...`);
+    socket.on("matchmakingQueued", ({ rating }: { position: number; rating?: number; gameMode?: string }) => {
+      if (rating) setMyMatchRating(rating);
     });
 
     socket.on("matchFound", ({
@@ -159,26 +169,35 @@ export default function LobbyPage() {
       opponentNickname,
       opponentAvatarColor,
       opponentCountry,
+      opponentRating,
+      myRating,
     }: {
       gameId: string;
       opponentNickname?: string;
       opponentAvatarColor?: string;
       opponentCountry?: string;
+      opponentRating?: number;
+      myRating?: number;
+      gameMode?: string;
     }) => {
+      if (waitTimerRef.current) { clearInterval(waitTimerRef.current); waitTimerRef.current = null; }
       setIsMatchmaking(false);
       socket.disconnect();
       matchmakingSocketRef.current = null;
+
+      if (myRating) setMyMatchRating(myRating);
 
       if (opponentNickname) {
         setMatchedOpponent({
           nickname: opponentNickname,
           avatarColor: opponentAvatarColor || "#3b82f6",
           country: opponentCountry,
+          rating: opponentRating,
         });
         setTimeout(() => {
           setMatchedOpponent(null);
           setLocation(`/game/${gameId}`);
-        }, 1800);
+        }, 2000);
       } else {
         setLocation(`/game/${gameId}`);
       }
@@ -191,6 +210,7 @@ export default function LobbyPage() {
   };
 
   const cancelMatchmaking = () => {
+    if (waitTimerRef.current) { clearInterval(waitTimerRef.current); waitTimerRef.current = null; }
     if (matchmakingSocketRef.current && user?.id) {
       matchmakingSocketRef.current.emit("leaveMatchmaking", { userId: user.id });
       matchmakingSocketRef.current.disconnect();
@@ -198,10 +218,12 @@ export default function LobbyPage() {
     }
     setIsMatchmaking(false);
     setMatchedOpponent(null);
+    setWaitTime(0);
   };
 
   useEffect(() => {
     return () => {
+      if (waitTimerRef.current) clearInterval(waitTimerRef.current);
       if (matchmakingSocketRef.current && user?.id) {
         matchmakingSocketRef.current.emit("leaveMatchmaking", { userId: user.id });
         matchmakingSocketRef.current.disconnect();
@@ -325,44 +347,74 @@ export default function LobbyPage() {
 
       {/* Matchmaking overlay */}
       {(isMatchmaking || matchedOpponent) && (
-        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center backdrop-blur-sm">
-          <div className="bg-card border border-border rounded-2xl p-10 flex flex-col items-center gap-6 shadow-2xl max-w-sm w-full mx-4 animate-in fade-in zoom-in duration-300">
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center backdrop-blur-sm">
+          <div className="bg-card border border-border rounded-2xl p-8 flex flex-col items-center gap-5 shadow-2xl max-w-sm w-full mx-4 animate-in fade-in zoom-in duration-300">
             {matchedOpponent ? (
               <>
-                <div
-                  className="w-20 h-20 rounded-full flex items-center justify-center text-3xl font-bold text-white shadow-lg"
-                  style={{ background: matchedOpponent.avatarColor }}
-                >
-                  {matchedOpponent.nickname.charAt(0).toUpperCase()}
-                </div>
-                <div className="text-center space-y-1">
+                <div className="text-center space-y-1 w-full">
+                  <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold mb-3 ${selectedGameMode === "ranked" ? "bg-yellow-500/20 text-yellow-400" : "bg-blue-500/20 text-blue-400"}`}>
+                    {selectedGameMode === "ranked" ? "⚡ Ranked" : "🎮 Casual"}
+                  </div>
                   <h2 className="text-xl font-bold">Match Found!</h2>
-                  <p className="text-muted-foreground text-sm">
-                    Playing against{" "}
-                    <span className="font-semibold text-foreground">{matchedOpponent.nickname}</span>
-                    {matchedOpponent.country && <span className="ml-1">({matchedOpponent.country})</span>}
-                  </p>
+                </div>
+                <div className="flex items-center gap-6 w-full justify-center">
+                  <div className="text-center">
+                    <div className="w-14 h-14 rounded-full bg-primary/20 flex items-center justify-center text-xl font-bold text-primary mx-auto mb-1">
+                      {(user?.username || "Y").charAt(0).toUpperCase()}
+                    </div>
+                    <p className="text-xs text-muted-foreground">You</p>
+                    {myMatchRating && <p className="text-sm font-bold">{myMatchRating}</p>}
+                  </div>
+                  <div className="text-2xl text-muted-foreground font-light">vs</div>
+                  <div className="text-center">
+                    <div
+                      className="w-14 h-14 rounded-full flex items-center justify-center text-xl font-bold text-white shadow-lg mx-auto mb-1"
+                      style={{ background: matchedOpponent.avatarColor }}
+                    >
+                      {matchedOpponent.nickname.charAt(0).toUpperCase()}
+                    </div>
+                    <p className="text-xs text-muted-foreground">{matchedOpponent.nickname}</p>
+                    {matchedOpponent.rating && <p className="text-sm font-bold">{matchedOpponent.rating}</p>}
+                  </div>
                 </div>
                 <div className="flex gap-1">
                   {[...Array(3)].map((_, i) => (
                     <div key={i} className="w-2 h-2 rounded-full bg-green-500 animate-bounce" style={{ animationDelay: `${i * 150}ms` }} />
                   ))}
                 </div>
+                <p className="text-xs text-muted-foreground">Starting game…</p>
               </>
             ) : (
               <>
+                <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${selectedGameMode === "ranked" ? "bg-yellow-500/20 text-yellow-400" : "bg-blue-500/20 text-blue-400"}`}>
+                  {selectedGameMode === "ranked" ? "⚡ Ranked" : "🎮 Casual"}
+                </div>
                 <div className="relative w-20 h-20 flex items-center justify-center">
                   <div className="absolute inset-0 rounded-full border-4 border-green-500/20 animate-ping" />
                   <div className="absolute inset-2 rounded-full border-4 border-green-500/40 animate-ping" style={{ animationDelay: "150ms" }} />
                   <Globe2 className="w-10 h-10 text-green-500 relative z-10" />
                 </div>
-                <div className="text-center space-y-1">
+                <div className="text-center space-y-1 w-full">
                   <h2 className="text-xl font-bold">Finding a Match</h2>
+                  {myMatchRating && (
+                    <p className="text-sm font-semibold text-foreground">Your rating: <span className="text-primary">{myMatchRating}</span></p>
+                  )}
                   <p className="text-muted-foreground text-sm flex items-center gap-2 justify-center">
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    {matchmakingStatus}
+                    {`${String(Math.floor(waitTime / 60)).padStart(2, "0")}:${String(waitTime % 60).padStart(2, "0")}`}
                   </p>
                 </div>
+                {myMatchRating && (
+                  <div className="w-full bg-muted/40 rounded-lg p-3 text-center">
+                    <p className="text-xs text-muted-foreground mb-1">Rating range</p>
+                    <p className="text-sm font-mono font-medium">
+                      {myMatchRating - Math.min(150 + Math.floor(waitTime / 30) * 50, 500)}
+                      {" — "}
+                      {myMatchRating + Math.min(150 + Math.floor(waitTime / 30) * 50, 500)}
+                    </p>
+                    {waitTime > 0 && <p className="text-xs text-muted-foreground mt-1">Expanding every 30s</p>}
+                  </div>
+                )}
                 <Button variant="outline" className="w-full" onClick={cancelMatchmaking}>
                   Cancel
                 </Button>
@@ -375,39 +427,49 @@ export default function LobbyPage() {
       <div className="lg:col-span-2 space-y-6">
         <h1 className="text-3xl font-bold">Play Chess</h1>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Card
-            className="bg-card border-border hover:border-green-500 transition-colors cursor-pointer group"
-            onClick={startMatchmaking}
+            className="bg-card border-border hover:border-yellow-500 transition-colors cursor-pointer group"
+            onClick={() => startMatchmaking("ranked")}
           >
-            <CardContent className="p-6 flex flex-col items-center text-center space-y-4">
-              <div className="w-16 h-16 rounded-full bg-green-500/10 flex items-center justify-center group-hover:scale-110 transition-transform">
-                <Globe2 className="w-8 h-8 text-green-500" />
+            <CardContent className="p-6 flex flex-col items-center text-center space-y-3">
+              <div className="w-14 h-14 rounded-full bg-yellow-500/10 flex items-center justify-center group-hover:scale-110 transition-transform">
+                <Swords className="w-7 h-7 text-yellow-500" />
               </div>
               <div>
-                <h3 className="text-xl font-bold mb-1">Play Online</h3>
-                <p className="text-sm text-muted-foreground">Auto-match with another player in real-time</p>
+                <h3 className="text-lg font-bold mb-0.5">Ranked</h3>
+                <p className="text-xs text-muted-foreground">Compete for Elo rating</p>
               </div>
-              <div className="flex gap-2 justify-center flex-wrap">
-                <Badge variant="secondary" className="bg-muted text-muted-foreground"><Clock className="w-3 h-3 mr-1" /> 10 min</Badge>
-                <Badge variant="secondary" className="bg-muted text-muted-foreground"><Swords className="w-3 h-3 mr-1" /> Ranked</Badge>
+              <Badge className="bg-yellow-500/15 text-yellow-400 border-yellow-500/30 text-xs">⚡ Rating affected</Badge>
+            </CardContent>
+          </Card>
+
+          <Card
+            className="bg-card border-border hover:border-blue-500 transition-colors cursor-pointer group"
+            onClick={() => startMatchmaking("casual")}
+          >
+            <CardContent className="p-6 flex flex-col items-center text-center space-y-3">
+              <div className="w-14 h-14 rounded-full bg-blue-500/10 flex items-center justify-center group-hover:scale-110 transition-transform">
+                <Globe2 className="w-7 h-7 text-blue-500" />
               </div>
+              <div>
+                <h3 className="text-lg font-bold mb-0.5">Casual</h3>
+                <p className="text-xs text-muted-foreground">Play for fun, no pressure</p>
+              </div>
+              <Badge className="bg-blue-500/15 text-blue-400 border-blue-500/30 text-xs">🎮 No rating change</Badge>
             </CardContent>
           </Card>
 
           <Card className="bg-card border-border hover:border-purple-500 transition-colors cursor-pointer group" onClick={startAIGame}>
-            <CardContent className="p-6 flex flex-col items-center text-center space-y-4">
-              <div className="w-16 h-16 rounded-full bg-purple-500/10 flex items-center justify-center group-hover:scale-110 transition-transform">
-                <Bot className="w-8 h-8 text-purple-500" />
+            <CardContent className="p-6 flex flex-col items-center text-center space-y-3">
+              <div className="w-14 h-14 rounded-full bg-purple-500/10 flex items-center justify-center group-hover:scale-110 transition-transform">
+                <Bot className="w-7 h-7 text-purple-500" />
               </div>
               <div>
-                <h3 className="text-xl font-bold mb-1">Play vs AI</h3>
-                <p className="text-sm text-muted-foreground">Challenge Stockfish with varying difficulties</p>
+                <h3 className="text-lg font-bold mb-0.5">Play vs AI</h3>
+                <p className="text-xs text-muted-foreground">Challenge Stockfish</p>
               </div>
-              <div className="flex gap-2 justify-center flex-wrap">
-                <Badge variant="secondary" className="bg-muted text-muted-foreground">Practice</Badge>
-                <Badge variant="secondary" className="bg-muted text-muted-foreground">Analysis</Badge>
-              </div>
+              <Badge className="bg-purple-500/15 text-purple-400 border-purple-500/30 text-xs">Practice mode</Badge>
             </CardContent>
           </Card>
         </div>
@@ -434,10 +496,10 @@ export default function LobbyPage() {
                           {player.country && <span className="text-xs text-muted-foreground ml-2">{player.country}</span>}
                         </div>
                       </div>
-                      <div className="flex items-center gap-4">
-                        <span className="text-sm text-muted-foreground hidden sm:block">{player.wins}W / {player.losses}L / {player.draws}D</span>
-                        <Badge variant="outline" className="font-mono text-sm border-primary/20 text-primary bg-primary/10">
-                          {player.winRate}%
+                      <div className="flex items-center gap-3">
+                        <span className="text-sm text-muted-foreground hidden sm:block">{player.wins}W / {player.losses}L</span>
+                        <Badge variant="outline" className="font-mono text-sm border-yellow-500/30 text-yellow-400 bg-yellow-500/10">
+                          {player.rating ?? "—"}
                         </Badge>
                       </div>
                     </div>

@@ -2,7 +2,7 @@ import { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
-import { LogOut, Swords, History, Users, Settings, Globe2, MessageCircle } from "lucide-react";
+import { LogOut, Swords, History, Users, Settings, Globe2, MessageCircle, Trophy } from "lucide-react";
 import { NotificationBell } from "@/components/notification-bell";
 
 function isFullscreenRoute(path: string) {
@@ -27,6 +27,7 @@ export function Layout({ children }: { children: ReactNode }) {
 
   const navItems = [
     { href: "/lobby", label: "Play", icon: Swords },
+    { href: "/leaderboard", label: "Leaderboard", icon: Trophy },
     { href: "/players", label: "Players", icon: Globe2 },
     { href: "/messages", label: "Messages", icon: MessageCircle },
     { href: "/history", label: "History", icon: History },
@@ -54,6 +55,8 @@ export function Layout({ children }: { children: ReactNode }) {
               ? location.startsWith("/messages")
               : item.href.startsWith("/profile")
               ? location.startsWith("/profile")
+              : item.href === "/leaderboard"
+              ? location === "/leaderboard"
               : location.startsWith(item.href);
             return (
               <Link

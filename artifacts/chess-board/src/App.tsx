@@ -18,6 +18,7 @@ import ProfilePage from "@/pages/profile";
 import PlayersPage from "@/pages/players";
 import OnboardingPage from "@/pages/onboarding";
 import MessagesPage from "@/pages/messages";
+import LeaderboardPage from "@/pages/leaderboard";
 import { SocketNotificationProvider } from "@/hooks/use-socket-notifications";
 import { AIControlProvider } from "@/contexts/ai-control-context";
 import { AIControlWidget } from "@/components/ai-control/AIControlWidget";
@@ -59,6 +60,7 @@ function Router() {
         <Route path="/players" component={() => <ProtectedRoute component={PlayersPage} />} />
         <Route path="/messages" component={() => <ProtectedRoute component={MessagesPage} />} />
         <Route path="/messages/:userId" component={() => <ProtectedRoute component={MessagesPage} />} />
+        <Route path="/leaderboard" component={() => <ProtectedRoute component={LeaderboardPage} />} />
         <Route component={NotFound} />
       </Switch>
     </Layout>

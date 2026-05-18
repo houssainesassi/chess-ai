@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, UserPlus, Swords, Trophy, Target, TrendingUp } from "lucide-react";
+import { ArrowLeft, UserPlus, Swords, Trophy, Target, TrendingUp, Star } from "lucide-react";
 import { Link } from "wouter";
 
 export default function ProfilePage() {
@@ -184,6 +184,30 @@ export default function ProfilePage() {
                 )}
               </div>
             </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Rating card */}
+      <Card className="bg-gradient-to-br from-yellow-500/10 to-amber-500/5 border-yellow-500/20">
+        <CardContent className="p-5 flex items-center gap-5">
+          <div className="w-14 h-14 rounded-full bg-yellow-500/15 flex items-center justify-center shrink-0">
+            <Star className="w-7 h-7 text-yellow-400" />
+          </div>
+          <div>
+            <p className="text-sm text-muted-foreground mb-0.5">Elo Rating</p>
+            <p className="text-4xl font-bold text-yellow-400">{profile?.rating ?? 800}</p>
+          </div>
+          <div className="ml-auto">
+            {(() => {
+              const r = profile?.rating ?? 800;
+              if (r >= 2400) return <span className="px-3 py-1.5 rounded-full bg-yellow-500/20 text-yellow-400 font-bold text-sm">GM</span>;
+              if (r >= 2000) return <span className="px-3 py-1.5 rounded-full bg-purple-500/20 text-purple-400 font-bold text-sm">Master</span>;
+              if (r >= 1600) return <span className="px-3 py-1.5 rounded-full bg-blue-500/20 text-blue-400 font-bold text-sm">Expert</span>;
+              if (r >= 1200) return <span className="px-3 py-1.5 rounded-full bg-green-500/20 text-green-400 font-bold text-sm">Advanced</span>;
+              if (r >= 900) return <span className="px-3 py-1.5 rounded-full bg-orange-500/20 text-orange-400 font-bold text-sm">Intermediate</span>;
+              return <span className="px-3 py-1.5 rounded-full bg-gray-500/20 text-gray-400 font-bold text-sm">Beginner</span>;
+            })()}
           </div>
         </CardContent>
       </Card>

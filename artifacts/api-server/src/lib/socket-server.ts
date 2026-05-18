@@ -7,6 +7,7 @@ import { db, chatMessagesTable, chessGamesTable, usersTable, directMessagesTable
 import { eq, and, lt, isNull } from "drizzle-orm";
 import { initNotify, createNotification } from "./notify";
 import { gameRoomManager } from "./game-room-manager";
+import { applyRatingUpdate } from "./rating";
 
 let io: SocketIOServer | null = null;
 
@@ -15,8 +16,116 @@ const INITIAL_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 // 2-minute abandonment timeout
 const DISCONNECT_TIMEOUT_MS = 2 * 60 * 1000;
 
-// Matchmaking queue: userId -> socketId
-const matchmakingQueue = new Map<string, string>();
+// Rating-based matchmaking queue
+interface QueueEntry {
+  socketId: string;
+  rating: number;
+  gameMode: "ranked" | "casual";
+  joinedAt: number;
+}
+const matchmakingQueue = new Map<string, QueueEntry>();
+
+function getRatingRange(joinedAt: number): number {
+  const secsWaiting = (Date.now() - joinedAt) / 1000;
+  const expansions = Math.floor(secsWaiting / 30);
+  return Math.min(150 + expansions * 50, 500);
+}
+
+async function tryMatchmaking(): Promise<void> {
+  if (matchmakingQueue.size < 2) return;
+  const entries = [...matchmakingQueue.entries()];
+
+  for (let i = 0; i < entries.length; i++) {
+    const [userA, entryA] = entries[i];
+    if (!matchmakingQueue.has(userA)) continue;
+
+    for (let j = i + 1; j < entries.length; j++) {
+      const [userB, entryB] = entries[j];
+      if (!matchmakingQueue.has(userB)) continue;
+      if (entryA.gameMode !== entryB.gameMode) continue;
+
+      const rangeA = getRatingRange(entryA.joinedAt);
+      const rangeB = getRatingRange(entryB.joinedAt);
+      const ratingDiff = Math.abs(entryA.rating - entryB.rating);
+      const effectiveRange = Math.max(rangeA, rangeB);
+
+      if (ratingDiff > effectiveRange) continue;
+
+      // Match found
+      matchmakingQueue.delete(userA);
+      matchmakingQueue.delete(userB);
+
+      try {
+        const [whiteId, blackId] =
+          Math.random() < 0.5 ? [userA, userB] : [userB, userA];
+
+        const [game] = await db
+          .insert(chessGamesTable)
+          .values({
+            whitePlayerId: whiteId,
+            blackPlayerId: blackId,
+            status: "active",
+            gameMode: entryA.gameMode,
+            fen: INITIAL_FEN,
+          })
+          .returning();
+
+        gameRoomManager.getOrCreate(game.id);
+        logger.info({ gameId: game.id, whiteId, blackId, mode: entryA.gameMode }, "Match found");
+
+        const allUsers = await db.select().from(usersTable);
+        const userMap = Object.fromEntries(allUsers.map((u) => [u.id, u]));
+
+        const playerA = userMap[userA];
+        const playerB = userMap[userB];
+
+        const profileA = {
+          nickname: playerA?.nickname || playerA?.username || "Opponent",
+          avatarColor: playerA?.avatarColor || "#3b82f6",
+          country: playerA?.country || null,
+          rating: playerA?.rating ?? 800,
+        };
+        const profileB = {
+          nickname: playerB?.nickname || playerB?.username || "Opponent",
+          avatarColor: playerB?.avatarColor || "#3b82f6",
+          country: playerB?.country || null,
+          rating: playerB?.rating ?? 800,
+        };
+
+        io?.to(`user:${userA}`).emit("matchFound", {
+          gameId: game.id,
+          opponentId: userB,
+          opponentNickname: profileB.nickname,
+          opponentAvatarColor: profileB.avatarColor,
+          opponentCountry: profileB.country,
+          opponentRating: profileB.rating,
+          myRating: profileA.rating,
+          gameMode: entryA.gameMode,
+        });
+
+        io?.to(`user:${userB}`).emit("matchFound", {
+          gameId: game.id,
+          opponentId: userA,
+          opponentNickname: profileA.nickname,
+          opponentAvatarColor: profileA.avatarColor,
+          opponentCountry: profileA.country,
+          opponentRating: profileA.rating,
+          myRating: profileB.rating,
+          gameMode: entryA.gameMode,
+        });
+      } catch (err) {
+        logger.error({ err }, "Failed to create matched game");
+        // Re-add to queue so they don't lose their spot entirely
+        if (io) {
+          io.to(entryA.socketId).emit("matchmakingError", { message: "Failed to create game" });
+          io.to(entryB.socketId).emit("matchmakingError", { message: "Failed to create game" });
+        }
+      }
+
+      return;
+    }
+  }
+}
 
 // Online status tracking: userId -> Set of socketIds (handles multiple tabs)
 const userSocketMap = new Map<string, Set<string>>();
@@ -70,7 +179,8 @@ async function endGameByAbandonment(gameId: string, loserUserId: string): Promis
       .set({ status: "completed", winner, updatedAt: new Date() })
       .where(and(eq(chessGamesTable.id, gameId), eq(chessGamesTable.status, "active")));
 
-    io?.to(`game:${gameId}`).emit("opponentAbandonedGame", { winner, loserUserId });
+    const ratingChanges = await applyRatingUpdate(gameId, winner as "white" | "black" | "draw");
+    io?.to(`game:${gameId}`).emit("opponentAbandonedGame", { winner, loserUserId, ratingChanges });
     logger.info({ gameId, loserUserId, winner }, "Game ended by abandonment");
 
     // Cleanup game room
@@ -220,76 +330,26 @@ export function initSocketServer(httpServer: HttpServer): SocketIOServer {
     });
 
     // ── Matchmaking ──────────────────────────────────────────────
-    socket.on("joinMatchmaking", async ({ userId }: { userId: string }) => {
+    socket.on("joinMatchmaking", async ({ userId, gameMode }: { userId: string; gameMode?: string }) => {
       if (!userId) return;
-      logger.info({ socketId: socket.id, userId }, "Player joining matchmaking queue");
+      const mode: "ranked" | "casual" = gameMode === "ranked" ? "ranked" : "casual";
+      logger.info({ socketId: socket.id, userId, mode }, "Player joining matchmaking queue");
 
       matchmakingQueue.delete(userId);
 
-      const waiting = [...matchmakingQueue.entries()].find(([uid]) => uid !== userId);
+      // Look up player's current rating
+      let playerRating = 800;
+      try {
+        const [u] = await db.select({ rating: usersTable.rating }).from(usersTable).where(eq(usersTable.id, userId));
+        if (u) playerRating = u.rating;
+      } catch (_) {}
 
-      if (waiting) {
-        const [opponentId] = waiting;
-        matchmakingQueue.delete(opponentId);
+      matchmakingQueue.set(userId, { socketId: socket.id, rating: playerRating, gameMode: mode, joinedAt: Date.now() });
+      socket.emit("matchmakingQueued", { position: matchmakingQueue.size, rating: playerRating, gameMode: mode });
+      logger.info({ userId, queueSize: matchmakingQueue.size, rating: playerRating, mode }, "Player added to queue");
 
-        try {
-          const [whiteId, blackId] =
-            Math.random() < 0.5 ? [opponentId, userId] : [userId, opponentId];
-
-          const [game] = await db
-            .insert(chessGamesTable)
-            .values({
-              whitePlayerId: whiteId,
-              blackPlayerId: blackId,
-              status: "active",
-              fen: INITIAL_FEN,
-            })
-            .returning();
-
-          gameRoomManager.getOrCreate(game.id);
-          logger.info({ gameId: game.id, whiteId, blackId }, "Match found");
-
-          const allUsers = await db.select().from(usersTable);
-          const userMap = Object.fromEntries(allUsers.map((u) => [u.id, u]));
-
-          const newPlayer = userMap[userId];
-          const waitingPlayer = userMap[opponentId];
-
-          const newPlayerProfile = {
-            nickname: newPlayer?.nickname || newPlayer?.username || "Opponent",
-            avatarColor: newPlayer?.avatarColor || "#3b82f6",
-            country: newPlayer?.country || null,
-          };
-          const waitingPlayerProfile = {
-            nickname: waitingPlayer?.nickname || waitingPlayer?.username || "Opponent",
-            avatarColor: waitingPlayer?.avatarColor || "#3b82f6",
-            country: waitingPlayer?.country || null,
-          };
-
-          io?.to(`user:${opponentId}`).emit("matchFound", {
-            gameId: game.id,
-            opponentId: userId,
-            opponentNickname: newPlayerProfile.nickname,
-            opponentAvatarColor: newPlayerProfile.avatarColor,
-            opponentCountry: newPlayerProfile.country,
-          });
-
-          io?.to(`user:${userId}`).emit("matchFound", {
-            gameId: game.id,
-            opponentId: opponentId,
-            opponentNickname: waitingPlayerProfile.nickname,
-            opponentAvatarColor: waitingPlayerProfile.avatarColor,
-            opponentCountry: waitingPlayerProfile.country,
-          });
-        } catch (err) {
-          logger.error({ err }, "Failed to create matched game");
-          socket.emit("matchmakingError", { message: "Failed to create game" });
-        }
-      } else {
-        matchmakingQueue.set(userId, socket.id);
-        socket.emit("matchmakingQueued", { position: matchmakingQueue.size });
-        logger.info({ userId, queueSize: matchmakingQueue.size }, "Player added to queue");
-      }
+      // Try to match immediately
+      await tryMatchmaking();
     });
 
     socket.on("leaveMatchmaking", ({ userId }: { userId: string }) => {
@@ -353,7 +413,8 @@ export function initSocketServer(httpServer: HttpServer): SocketIOServer {
             .set({ status: "completed", winner, updatedAt: new Date() })
             .where(and(eq(chessGamesTable.id, gameId), eq(chessGamesTable.status, "active")));
 
-          io?.to(`game:${gameId}`).emit("playerResigned", { resignedUserId: userId, winner });
+          const ratingChanges = await applyRatingUpdate(gameId, winner as "white" | "black" | "draw");
+          io?.to(`game:${gameId}`).emit("playerResigned", { resignedUserId: userId, winner, ratingChanges });
           logger.info({ gameId, userId, winner }, "Player resigned");
 
           // Cancel any pending disconnect timers for this game
@@ -393,10 +454,12 @@ export function initSocketServer(httpServer: HttpServer): SocketIOServer {
             .set({ status: "completed", winner, updatedAt: new Date() })
             .where(and(eq(chessGamesTable.id, gameId), eq(chessGamesTable.status, "active")));
 
+          const ratingChanges = await applyRatingUpdate(gameId, winner as "white" | "black" | "draw");
           io?.to(`game:${gameId}`).emit("gameEnd", {
             reason: "quit",
             winner,
             loserUserId: userId,
+            ratingChanges,
           });
           logger.info({ gameId, userId, winner }, "Player quit game");
 
@@ -433,7 +496,8 @@ export function initSocketServer(httpServer: HttpServer): SocketIOServer {
           .set({ status: "completed", winner: "draw", updatedAt: new Date() })
           .where(and(eq(chessGamesTable.id, gameId), eq(chessGamesTable.status, "active")));
 
-        io?.to(`game:${gameId}`).emit("drawAccepted", {});
+        const ratingChanges = await applyRatingUpdate(gameId, "draw");
+        io?.to(`game:${gameId}`).emit("drawAccepted", { ratingChanges });
         logger.info({ gameId }, "Draw accepted");
       } catch (err) {
         logger.error({ err }, "Failed to process draw acceptance");
@@ -448,8 +512,8 @@ export function initSocketServer(httpServer: HttpServer): SocketIOServer {
     // ── Disconnect ───────────────────────────────────────────────
     socket.on("disconnect", () => {
       // Clean matchmaking
-      for (const [userId, sid] of matchmakingQueue.entries()) {
-        if (sid === socket.id) {
+      for (const [userId, entry] of matchmakingQueue.entries()) {
+        if (entry.socketId === socket.id) {
           matchmakingQueue.delete(userId);
           logger.info({ userId }, "Removed disconnected player from matchmaking queue");
           break;
@@ -535,6 +599,9 @@ export function initSocketServer(httpServer: HttpServer): SocketIOServer {
       logger.info({ socketId: socket.id }, "Client disconnected");
     });
   });
+
+  // Periodic matchmaking: try to pair players every 5 seconds
+  setInterval(tryMatchmaking, 5000);
 
   // Inactivity cleanup: mark stale "online" users as offline every 2 minutes
   setInterval(async () => {

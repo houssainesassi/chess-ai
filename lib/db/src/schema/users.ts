@@ -13,6 +13,8 @@ export const usersTable = pgTable("users", {
   bio: text("bio"),
   avatarColor: text("avatar_color"),
   avatarUrl: text("avatar_url"),
+  rating: integer("rating").default(800).notNull(),
+  gamesPlayed: integer("games_played").default(0).notNull(),
   isOnline: boolean("is_online").default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow(),

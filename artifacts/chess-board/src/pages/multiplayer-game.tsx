@@ -57,6 +57,7 @@ export default function MultiplayerGamePage() {
   const [drawOfferedByOpponent, setDrawOfferedByOpponent] = useState(false);
   const [drawOfferSent, setDrawOfferSent] = useState(false);
   const [gameOver, setGameOver] = useState<{ winner: string; reason: string } | null>(null);
+  const [ratingChanges, setRatingChanges] = useState<{ whiteChange: number; blackChange: number } | null>(null);
 
   const [voiceActive, setVoiceActive] = useState(false);
   const [voiceTranscript, setVoiceTranscript] = useState("");
@@ -202,11 +203,16 @@ export default function MultiplayerGamePage() {
       setMessages(p => [...p, { sender: msg.username, text: msg.message }]);
       if (!showChat) setUnreadChat(n => n + 1);
     });
-    sock.on("playerResigned", ({ resignedUserId, winner }: any) => {
+    sock.on("playerResigned", ({ resignedUserId, winner, ratingChanges: rc }: any) => {
+      if (rc) setRatingChanges(rc);
       setGameOver({ winner, reason: resignedUserId !== user?.id ? "Your opponent resigned" : "You resigned" });
     });
     sock.on("drawOffered", () => setDrawOfferedByOpponent(true));
-    sock.on("drawAccepted", () => { setDrawOfferSent(false); setGameOver({ winner: "draw", reason: "Draw agreed" }); });
+    sock.on("drawAccepted", ({ ratingChanges: rc }: any) => {
+      if (rc) setRatingChanges(rc);
+      setDrawOfferSent(false);
+      setGameOver({ winner: "draw", reason: "Draw agreed" });
+    });
     sock.on("drawDeclined", () => { setDrawOfferSent(false); toast({ title: "Draw offer declined" }); });
     sock.on("spectatorCount", ({ count }: { count: number }) => setSpectatorCount(count));
 
@@ -217,8 +223,9 @@ export default function MultiplayerGamePage() {
     sock.on("opponentReconnected", () => {
       setOpponentDisconnectedSecs(null);
     });
-    sock.on("opponentAbandonedGame", ({ winner }: { winner: string; loserUserId: string }) => {
+    sock.on("opponentAbandonedGame", ({ winner, ratingChanges: rc }: { winner: string; loserUserId: string; ratingChanges?: any }) => {
       setOpponentDisconnectedSecs(null);
+      if (rc) setRatingChanges(rc);
       setGame((prev: any) => prev ? { ...prev, status: "completed", winner } : prev);
       setGameOver((prev) => prev ?? {
         winner,
@@ -230,8 +237,9 @@ export default function MultiplayerGamePage() {
     });
 
     // ── Quit → both auto-redirect to lobby ───────────────────────
-    sock.on("gameEnd", ({ reason, winner, loserUserId }: { reason: string; winner: string; loserUserId: string }) => {
+    sock.on("gameEnd", ({ reason, winner, loserUserId, ratingChanges: rc }: { reason: string; winner: string; loserUserId: string; ratingChanges?: any }) => {
       const iQuit = loserUserId === user?.id;
+      if (rc) setRatingChanges(rc);
       setGameOver({
         winner,
         reason: iQuit ? "You left the game" : "Opponent quit the game",
@@ -457,14 +465,31 @@ export default function MultiplayerGamePage() {
       {/* ── Game over modal ── */}
       {gameOver && (
         <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center backdrop-blur-sm">
-          <div className="bg-[#2c2c2c] border border-white/10 rounded-2xl p-8 flex flex-col items-center gap-5 shadow-2xl max-w-sm w-full mx-4 animate-in fade-in zoom-in duration-300">
-            <div className={`w-20 h-20 rounded-full flex items-center justify-center ${iWon ? "bg-yellow-500/20" : isDraw ? "bg-blue-500/20" : "bg-red-500/20"}`}>
-              {iWon ? <Trophy className="w-10 h-10 text-yellow-400" /> : isDraw ? <Minus className="w-10 h-10 text-blue-400" /> : <Flag className="w-10 h-10 text-red-400" />}
+          <div className="bg-[#2c2c2c] border border-white/10 rounded-2xl p-8 flex flex-col items-center gap-4 shadow-2xl max-w-sm w-full mx-4 animate-in fade-in zoom-in duration-300">
+            <div className={`w-16 h-16 rounded-full flex items-center justify-center ${iWon ? "bg-yellow-500/20" : isDraw ? "bg-blue-500/20" : "bg-red-500/20"}`}>
+              {iWon ? <Trophy className="w-8 h-8 text-yellow-400" /> : isDraw ? <Minus className="w-8 h-8 text-blue-400" /> : <Flag className="w-8 h-8 text-red-400" />}
             </div>
             <div className="text-center">
               <h2 className="text-2xl font-bold text-white">{iWon ? "You Won!" : isDraw ? "Draw!" : "You Lost"}</h2>
               <p className="text-white/50 text-sm mt-1">{gameOver.reason}</p>
             </div>
+            {(() => {
+              if (!ratingChanges || game?.gameMode !== "ranked") return null;
+              const myChange = game?.whitePlayerId === user?.id ? ratingChanges.whiteChange : ratingChanges.blackChange;
+              return (
+                <div className={`w-full text-center py-3 px-4 rounded-xl border ${myChange > 0 ? "border-green-500/30 bg-green-500/10" : myChange < 0 ? "border-red-500/30 bg-red-500/10" : "border-white/10 bg-white/5"}`}>
+                  <p className="text-[10px] uppercase tracking-widest text-white/40 mb-1">Rated Game · Rating change</p>
+                  <p className={`text-3xl font-bold ${myChange > 0 ? "text-green-400" : myChange < 0 ? "text-red-400" : "text-white/60"}`}>
+                    {myChange > 0 ? "+" : ""}{myChange}
+                  </p>
+                </div>
+              );
+            })()}
+            {ratingChanges && game?.gameMode !== "ranked" && (
+              <div className="w-full text-center py-2 px-4 rounded-xl border border-white/10 bg-white/5">
+                <p className="text-[10px] uppercase tracking-widest text-white/40">Casual Game · No rating change</p>
+              </div>
+            )}
             {quitRedirectSecs !== null ? (
               <div className="w-full text-center">
                 <p className="text-white/40 text-xs mb-3">Returning to lobby in {quitRedirectSecs}s...</p>
