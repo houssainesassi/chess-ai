@@ -94,6 +94,9 @@ export const api = {
   // Leaderboard
   getLeaderboard: () => req<{ leaderboard: LeaderboardEntry[] }>("/leaderboard"),
 
+  // Online status
+  getStatusUsers: (token: string) => req<{ users: PlayerStatus[] }>("/status/users", { token }),
+
   // Local AI game
   getGameState: () => req<LocalGameState>("/game/state"),
   getGameHistory: () => req<{ moves: LocalMove[] }>("/game/history"),
@@ -194,6 +197,18 @@ export interface AnalysisResult {
   moveQuality: string;
   reviewTitle: string;
   reviewCommentary: string;
+}
+
+export interface PlayerStatus {
+  id: string;
+  username: string;
+  nickname: string | null;
+  avatarColor: string | null;
+  avatarUrl: string | null;
+  country: string | null;
+  isOnline: boolean;
+  lastSeen: string | null;
+  wins: number;
 }
 
 export interface ActiveGame {

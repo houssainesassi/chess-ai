@@ -41,6 +41,10 @@ export function SocketNotificationProvider({ children }: { children: React.React
       socket.emit("registerUser", { userId: user.id });
     });
 
+    const heartbeatInterval = setInterval(() => {
+      if (socket.connected) socket.emit("heartbeat", { userId: user.id });
+    }, 25_000);
+
     socket.on("gameInvite", (data: GameInvite) => {
       setPendingInvite(data);
     });
@@ -65,6 +69,7 @@ export function SocketNotificationProvider({ children }: { children: React.React
     });
 
     return () => {
+      clearInterval(heartbeatInterval);
       socket.disconnect();
     };
   }, [token, user?.id]);

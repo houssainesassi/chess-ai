@@ -4,7 +4,7 @@ import { logger } from "./logger";
 import { chessEngine } from "./chess-engine";
 import type { GameState } from "./chess-engine";
 import { db, chatMessagesTable, chessGamesTable, usersTable } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, lt } from "drizzle-orm";
 import { gameRoomManager } from "./game-room-manager";
 
 let io: SocketIOServer | null = null;
@@ -16,6 +16,21 @@ const DISCONNECT_TIMEOUT_MS = 2 * 60 * 1000;
 
 // Matchmaking queue: userId -> socketId
 const matchmakingQueue = new Map<string, string>();
+
+// Online status tracking: userId -> Set of socketIds (handles multiple tabs)
+const userSocketMap = new Map<string, Set<string>>();
+
+async function markUserOnline(userId: string): Promise<void> {
+  const now = new Date();
+  await db.update(usersTable).set({ isOnline: true, updatedAt: now }).where(eq(usersTable.id, userId)).catch(() => {});
+  io?.emit("userStatusChanged", { userId, isOnline: true, lastSeen: now.toISOString() });
+}
+
+async function markUserOffline(userId: string): Promise<void> {
+  const now = new Date();
+  await db.update(usersTable).set({ isOnline: false, updatedAt: now }).where(eq(usersTable.id, userId)).catch(() => {});
+  io?.emit("userStatusChanged", { userId, isOnline: false, lastSeen: now.toISOString() });
+}
 
 // Spectators: gameId -> Set<socketId>
 const spectatorMap = new Map<string, Set<string>>();
@@ -119,8 +134,21 @@ export function initSocketServer(httpServer: HttpServer): SocketIOServer {
     socket.on("registerUser", ({ userId }: { userId: string }) => {
       if (userId) {
         socket.join(`user:${userId}`);
+        (socket as any)._registeredUserId = userId;
+
+        if (!userSocketMap.has(userId)) userSocketMap.set(userId, new Set());
+        const wasOnline = userSocketMap.get(userId)!.size > 0;
+        userSocketMap.get(userId)!.add(socket.id);
+
+        if (!wasOnline) markUserOnline(userId);
+
         logger.info({ socketId: socket.id, userId }, "Client registered personal room");
       }
+    });
+
+    socket.on("heartbeat", ({ userId }: { userId: string }) => {
+      if (!userId) return;
+      db.update(usersTable).set({ updatedAt: new Date() }).where(eq(usersTable.id, userId)).catch(() => {});
     });
 
     // ── Spectator ─────────────────────────────────────────────────
@@ -441,9 +469,42 @@ export function initSocketServer(httpServer: HttpServer): SocketIOServer {
         })();
       }
 
+      // Handle online status
+      const registeredUserId = (socket as any)._registeredUserId as string | undefined;
+      if (registeredUserId) {
+        const sockets = userSocketMap.get(registeredUserId);
+        if (sockets) {
+          sockets.delete(socket.id);
+          if (sockets.size === 0) {
+            userSocketMap.delete(registeredUserId);
+            markUserOffline(registeredUserId);
+          }
+        }
+      }
+
       logger.info({ socketId: socket.id }, "Client disconnected");
     });
   });
+
+  // Inactivity cleanup: mark stale "online" users as offline every 2 minutes
+  setInterval(async () => {
+    try {
+      const staleThreshold = new Date(Date.now() - 3 * 60 * 1000);
+      const stale = await db
+        .select({ id: usersTable.id })
+        .from(usersTable)
+        .where(and(eq(usersTable.isOnline, true), lt(usersTable.updatedAt!, staleThreshold)));
+
+      for (const u of stale) {
+        if (!userSocketMap.has(u.id)) {
+          markUserOffline(u.id);
+          logger.info({ userId: u.id }, "Marked stale user as offline");
+        }
+      }
+    } catch (err) {
+      logger.error({ err }, "Inactivity cleanup failed");
+    }
+  }, 2 * 60 * 1000);
 
   return io;
 }

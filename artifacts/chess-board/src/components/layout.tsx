@@ -2,7 +2,7 @@ import { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
-import { LogOut, Swords, History, Users, Settings } from "lucide-react";
+import { LogOut, Swords, History, Users, Settings, Globe2 } from "lucide-react";
 
 // Pages that should be completely full-screen (no sidebar)
 const FULLSCREEN_ROUTES = ["/game"];
@@ -31,6 +31,7 @@ export function Layout({ children }: { children: ReactNode }) {
 
   const navItems = [
     { href: "/lobby", label: "Play", icon: Swords },
+    { href: "/players", label: "Players", icon: Globe2 },
     { href: "/history", label: "History", icon: History },
     { href: `/profile/${user?.id}`, label: "My Profile", icon: Users },
     { href: "/settings", label: "Settings", icon: Settings },

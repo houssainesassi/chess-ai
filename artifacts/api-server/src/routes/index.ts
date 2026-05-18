@@ -8,6 +8,7 @@ import profileRouter from "./profile";
 import leaderboardRouter from "./leaderboard";
 import friendsRouter from "./friends";
 import authRouter from "./auth";
+import statusRouter from "./status";
 
 const router: IRouter = Router();
 
@@ -20,5 +21,6 @@ router.use(chatRouter);
 router.use(profileRouter);
 router.use(leaderboardRouter);
 router.use(friendsRouter);
+router.use(statusRouter);
 
 export default router;

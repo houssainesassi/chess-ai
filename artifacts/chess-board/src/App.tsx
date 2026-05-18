@@ -15,6 +15,7 @@ import HistoryPage from "@/pages/history";
 import HistoryReplayPage from "@/pages/history-replay";
 import SettingsPage from "@/pages/settings";
 import ProfilePage from "@/pages/profile";
+import PlayersPage from "@/pages/players";
 import { SocketNotificationProvider } from "@/hooks/use-socket-notifications";
 import { AIControlProvider } from "@/contexts/ai-control-context";
 import { AIControlWidget } from "@/components/ai-control/AIControlWidget";
@@ -52,6 +53,7 @@ function Router() {
         <Route path="/history/:id" component={() => <ProtectedRoute component={HistoryReplayPage} />} />
         <Route path="/settings" component={() => <ProtectedRoute component={SettingsPage} />} />
         <Route path="/profile/:userId" component={() => <ProtectedRoute component={ProfilePage} />} />
+        <Route path="/players" component={() => <ProtectedRoute component={PlayersPage} />} />
         <Route component={NotFound} />
       </Switch>
     </Layout>
