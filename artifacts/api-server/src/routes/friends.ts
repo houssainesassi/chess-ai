@@ -1,8 +1,9 @@
 import { Router } from "express";
-import { eq, and, or, inArray, ilike } from "drizzle-orm";
+import { eq, and, or, ilike } from "drizzle-orm";
 import { db, friendRequestsTable, usersTable, chessGamesTable } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
 import { getSocketServer } from "../lib/socket-server";
+import { createNotification } from "../lib/notify";
 import { gameRoomManager } from "../lib/game-room-manager";
 import { logger } from "../lib/logger";
 
@@ -20,17 +21,11 @@ function formatProfile(u: any) {
 
 router.get("/friends", requireAuth, async (req, res) => {
   const userId = (req as any).userId as string;
-
   try {
     const requests = await db
       .select()
       .from(friendRequestsTable)
-      .where(
-        or(
-          eq(friendRequestsTable.fromUserId, userId),
-          eq(friendRequestsTable.toUserId, userId),
-        ),
-      );
+      .where(or(eq(friendRequestsTable.fromUserId, userId), eq(friendRequestsTable.toUserId, userId)));
 
     const pendingIn: typeof requests = [];
     const pendingOut: typeof requests = [];
@@ -44,13 +39,11 @@ router.get("/friends", requireAuth, async (req, res) => {
       }
     }
 
-    const allIds = [
-      ...new Set([
-        ...friends.map((r) => (r.fromUserId === userId ? r.toUserId : r.fromUserId)),
-        ...pendingIn.map((r) => r.fromUserId),
-        ...pendingOut.map((r) => r.toUserId),
-      ]),
-    ];
+    const allIds = [...new Set([
+      ...friends.map((r) => (r.fromUserId === userId ? r.toUserId : r.fromUserId)),
+      ...pendingIn.map((r) => r.fromUserId),
+      ...pendingOut.map((r) => r.toUserId),
+    ])];
 
     const userRows = allIds.length
       ? await db.select().from(usersTable).then((rows) => rows.filter((u) => allIds.includes(u.id)))
@@ -63,38 +56,21 @@ router.get("/friends", requireAuth, async (req, res) => {
       .from(chessGamesTable)
       .where(and(eq(chessGamesTable.status, "waiting"), eq(chessGamesTable.whitePlayerId, userId)));
 
-    const openGameId = waitingGame[0]?.id ?? null;
-
     res.json({
       friends: friends.map((r) => {
         const otherId = r.fromUserId === userId ? r.toUserId : r.fromUserId;
         const u = profileMap[otherId];
-        return {
-          requestId: r.id,
-          userId: otherId,
-          profile: u ? formatProfile(u) : null,
-          since: r.updatedAt,
-        };
+        return { requestId: r.id, userId: otherId, profile: u ? formatProfile(u) : null, since: r.updatedAt };
       }),
       pendingIn: pendingIn.map((r) => {
         const u = profileMap[r.fromUserId];
-        return {
-          requestId: r.id,
-          userId: r.fromUserId,
-          profile: u ? formatProfile(u) : null,
-          createdAt: r.createdAt,
-        };
+        return { requestId: r.id, userId: r.fromUserId, profile: u ? formatProfile(u) : null, createdAt: r.createdAt };
       }),
       pendingOut: pendingOut.map((r) => {
         const u = profileMap[r.toUserId];
-        return {
-          requestId: r.id,
-          userId: r.toUserId,
-          profile: u ? formatProfile(u) : null,
-          createdAt: r.createdAt,
-        };
+        return { requestId: r.id, userId: r.toUserId, profile: u ? formatProfile(u) : null, createdAt: r.createdAt };
       }),
-      openGameId,
+      openGameId: waitingGame[0]?.id ?? null,
     });
   } catch (err) {
     logger.error({ err }, "Failed to list friends");
@@ -116,42 +92,27 @@ router.post("/friends/request", requireAuth, async (req, res) => {
   }
 
   try {
-    const existing = await db
-      .select()
-      .from(friendRequestsTable)
-      .where(
-        or(
-          and(eq(friendRequestsTable.fromUserId, userId), eq(friendRequestsTable.toUserId, toUserId)),
-          and(eq(friendRequestsTable.fromUserId, toUserId), eq(friendRequestsTable.toUserId, userId)),
-        ),
-      );
+    const existing = await db.select().from(friendRequestsTable).where(
+      or(
+        and(eq(friendRequestsTable.fromUserId, userId), eq(friendRequestsTable.toUserId, toUserId)),
+        and(eq(friendRequestsTable.fromUserId, toUserId), eq(friendRequestsTable.toUserId, userId)),
+      ),
+    );
 
     if (existing.length > 0) {
       const e = existing[0];
-      if (e.status === "accepted") {
-        res.status(400).json({ error: "already_friends", message: "Already friends" });
-        return;
-      }
-      if (e.status === "pending") {
-        res.status(400).json({ error: "request_exists", message: "Friend request already pending" });
-        return;
-      }
-      const [updated] = await db
-        .update(friendRequestsTable)
+      if (e.status === "accepted") { res.status(400).json({ error: "already_friends", message: "Already friends" }); return; }
+      if (e.status === "pending") { res.status(400).json({ error: "request_exists", message: "Friend request already pending" }); return; }
+      const [updated] = await db.update(friendRequestsTable)
         .set({ status: "pending", fromUserId: userId, toUserId, updatedAt: new Date() })
-        .where(eq(friendRequestsTable.id, e.id))
-        .returning();
-      notifyFriendRequest(toUserId, updated);
+        .where(eq(friendRequestsTable.id, e.id)).returning();
+      notifyFriendRequest(toUserId, updated, userId);
       res.json(updated);
       return;
     }
 
-    const [created] = await db
-      .insert(friendRequestsTable)
-      .values({ fromUserId: userId, toUserId })
-      .returning();
-
-    notifyFriendRequest(toUserId, created);
+    const [created] = await db.insert(friendRequestsTable).values({ fromUserId: userId, toUserId }).returning();
+    notifyFriendRequest(toUserId, created, userId);
     res.json(created);
   } catch (err) {
     logger.error({ err }, "Failed to send friend request");
@@ -161,29 +122,22 @@ router.post("/friends/request", requireAuth, async (req, res) => {
 
 router.post("/friends/accept/:requestId", requireAuth, async (req, res) => {
   const userId = (req as any).userId as string;
-  const requestId = req.params.requestId as string;
-
+  const requestId = req.params.requestId;
   try {
-    const [request] = await db
-      .select()
-      .from(friendRequestsTable)
-      .where(eq(friendRequestsTable.id, requestId));
-
+    const [request] = await db.select().from(friendRequestsTable).where(eq(friendRequestsTable.id, requestId));
     if (!request || request.toUserId !== userId) {
       res.status(404).json({ error: "not_found", message: "Request not found" });
       return;
     }
-
-    const [updated] = await db
-      .update(friendRequestsTable)
+    const [updated] = await db.update(friendRequestsTable)
       .set({ status: "accepted", updatedAt: new Date() })
-      .where(eq(friendRequestsTable.id, requestId))
-      .returning();
+      .where(eq(friendRequestsTable.id, requestId)).returning();
 
-    getSocketServer()?.to(`user:${request.fromUserId}`).emit("friendAccepted", {
-      requestId,
-      byUserId: userId,
-    });
+    getSocketServer()?.to(`user:${request.fromUserId}`).emit("friendAccepted", { requestId, byUserId: userId });
+
+    const [accepter] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+    const name = accepter?.nickname || accepter?.username || "Someone";
+    await createNotification(request.fromUserId, "friend_accepted", userId, requestId, `${name} accepted your friend request`);
 
     res.json(updated);
   } catch (err) {
@@ -194,24 +148,14 @@ router.post("/friends/accept/:requestId", requireAuth, async (req, res) => {
 
 router.post("/friends/decline/:requestId", requireAuth, async (req, res) => {
   const userId = (req as any).userId as string;
-  const requestId = req.params.requestId as string;
-
+  const requestId = req.params.requestId;
   try {
-    const [request] = await db
-      .select()
-      .from(friendRequestsTable)
-      .where(eq(friendRequestsTable.id, requestId));
-
+    const [request] = await db.select().from(friendRequestsTable).where(eq(friendRequestsTable.id, requestId));
     if (!request || request.toUserId !== userId) {
       res.status(404).json({ error: "not_found", message: "Request not found" });
       return;
     }
-
-    await db
-      .update(friendRequestsTable)
-      .set({ status: "declined", updatedAt: new Date() })
-      .where(eq(friendRequestsTable.id, requestId));
-
+    await db.update(friendRequestsTable).set({ status: "declined", updatedAt: new Date() }).where(eq(friendRequestsTable.id, requestId));
     res.json({ success: true });
   } catch (err) {
     logger.error({ err }, "Failed to decline friend request");
@@ -221,17 +165,14 @@ router.post("/friends/decline/:requestId", requireAuth, async (req, res) => {
 
 router.delete("/friends/:friendUserId", requireAuth, async (req, res) => {
   const userId = (req as any).userId as string;
-  const friendUserId = req.params.friendUserId as string;
-
+  const friendUserId = req.params.friendUserId;
   try {
-    await db
-      .delete(friendRequestsTable)
-      .where(
-        or(
-          and(eq(friendRequestsTable.fromUserId, userId), eq(friendRequestsTable.toUserId, friendUserId)),
-          and(eq(friendRequestsTable.fromUserId, friendUserId), eq(friendRequestsTable.toUserId, userId)),
-        ),
-      );
+    await db.delete(friendRequestsTable).where(
+      or(
+        and(eq(friendRequestsTable.fromUserId, userId), eq(friendRequestsTable.toUserId, friendUserId)),
+        and(eq(friendRequestsTable.fromUserId, friendUserId), eq(friendRequestsTable.toUserId, userId)),
+      ),
+    );
     res.json({ success: true });
   } catch (err) {
     logger.error({ err }, "Failed to remove friend");
@@ -242,53 +183,36 @@ router.delete("/friends/:friendUserId", requireAuth, async (req, res) => {
 router.post("/friends/invite", requireAuth, async (req, res) => {
   const userId = (req as any).userId as string;
   const { toUserId } = req.body as { toUserId?: string };
-
-  if (!toUserId) {
-    res.status(400).json({ error: "validation_error", message: "toUserId is required" });
-    return;
-  }
-
+  if (!toUserId) { res.status(400).json({ error: "validation_error", message: "toUserId is required" }); return; }
   try {
-    const [friendship] = await db
-      .select()
-      .from(friendRequestsTable)
-      .where(
-        and(
-          eq(friendRequestsTable.status, "accepted"),
-          or(
-            and(eq(friendRequestsTable.fromUserId, userId), eq(friendRequestsTable.toUserId, toUserId)),
-            and(eq(friendRequestsTable.fromUserId, toUserId), eq(friendRequestsTable.toUserId, userId)),
-          ),
-        ),
-      );
+    const [friendship] = await db.select().from(friendRequestsTable).where(
+      and(eq(friendRequestsTable.status, "accepted"),
+        or(
+          and(eq(friendRequestsTable.fromUserId, userId), eq(friendRequestsTable.toUserId, toUserId)),
+          and(eq(friendRequestsTable.fromUserId, toUserId), eq(friendRequestsTable.toUserId, userId)),
+        )),
+    );
+    if (!friendship) { res.status(403).json({ error: "not_friends", message: "You are not friends" }); return; }
 
-    if (!friendship) {
-      res.status(403).json({ error: "not_friends", message: "You are not friends with this player" });
-      return;
-    }
-
-    const [game] = await db
-      .insert(chessGamesTable)
-      .values({
-        whitePlayerId: userId,
-        status: "waiting",
-        fen: "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
-      })
-      .returning();
+    const [game] = await db.insert(chessGamesTable).values({
+      whitePlayerId: userId, status: "waiting",
+      fen: "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+    }).returning();
 
     gameRoomManager.getOrCreate(game.id);
 
     const [fromUser] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+    const fromName = fromUser?.nickname || fromUser?.username || "Someone";
 
     getSocketServer()?.to(`user:${toUserId}`).emit("gameInvite", {
-      gameId: game.id,
-      fromUserId: userId,
-      fromNickname: fromUser?.nickname || fromUser?.username || "Someone",
+      gameId: game.id, fromUserId: userId,
+      fromNickname: fromName,
       fromAvatarColor: fromUser?.avatarColor || "#3b82f6",
       fromAvatarUrl: fromUser?.avatarUrl ?? null,
       fromCountry: fromUser?.country ?? null,
     });
 
+    await createNotification(toUserId, "game_invite", userId, game.id, `${fromName} challenged you to a game`);
     res.json({ success: true, gameId: game.id });
   } catch (err) {
     logger.error({ err }, "Failed to send game invite");
@@ -299,34 +223,17 @@ router.post("/friends/invite", requireAuth, async (req, res) => {
 router.post("/friends/invite/decline", requireAuth, async (req, res) => {
   const userId = (req as any).userId as string;
   const { gameId } = req.body as { gameId?: string };
-
-  if (!gameId) {
-    res.status(400).json({ error: "validation_error", message: "gameId is required" });
-    return;
-  }
-
+  if (!gameId) { res.status(400).json({ error: "validation_error", message: "gameId is required" }); return; }
   try {
-    const [game] = await db
-      .select()
-      .from(chessGamesTable)
-      .where(eq(chessGamesTable.id, gameId));
-
-    if (!game) {
-      res.status(404).json({ error: "not_found", message: "Game not found" });
-      return;
-    }
-
-    if (game.status !== "waiting") {
-      res.status(400).json({ error: "game_not_waiting", message: "Game is no longer waiting" });
-      return;
-    }
+    const [game] = await db.select().from(chessGamesTable).where(eq(chessGamesTable.id, gameId));
+    if (!game) { res.status(404).json({ error: "not_found", message: "Game not found" }); return; }
+    if (game.status !== "waiting") { res.status(400).json({ error: "game_not_waiting", message: "Game is not waiting" }); return; }
 
     const [decliner] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
     await db.delete(chessGamesTable).where(eq(chessGamesTable.id, gameId));
 
     getSocketServer()?.to(`user:${game.whitePlayerId}`).emit("gameInviteDeclined", {
-      gameId,
-      byUserId: userId,
+      gameId, byUserId: userId,
       byNickname: decliner?.nickname || decliner?.username || "Your opponent",
     });
 
@@ -339,42 +246,31 @@ router.post("/friends/invite/decline", requireAuth, async (req, res) => {
 
 router.post("/challenge/:toUserId", requireAuth, async (req, res) => {
   const userId = (req as any).userId as string;
-  const toUserId = req.params.toUserId as string;
-
-  if (!toUserId || toUserId === userId) {
-    res.status(400).json({ error: "validation_error", message: "Invalid target user" });
-    return;
-  }
-
+  const toUserId = req.params.toUserId;
+  if (!toUserId || toUserId === userId) { res.status(400).json({ error: "validation_error", message: "Invalid target" }); return; }
   try {
     const [targetUser] = await db.select().from(usersTable).where(eq(usersTable.id, toUserId));
-    if (!targetUser) {
-      res.status(404).json({ error: "not_found", message: "Player not found" });
-      return;
-    }
+    if (!targetUser) { res.status(404).json({ error: "not_found", message: "Player not found" }); return; }
 
-    const [game] = await db
-      .insert(chessGamesTable)
-      .values({
-        whitePlayerId: userId,
-        status: "waiting",
-        fen: "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
-      })
-      .returning();
+    const [game] = await db.insert(chessGamesTable).values({
+      whitePlayerId: userId, status: "waiting",
+      fen: "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+    }).returning();
 
     gameRoomManager.getOrCreate(game.id);
 
     const [fromUser] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+    const fromName = fromUser?.nickname || fromUser?.username || "Someone";
 
     getSocketServer()?.to(`user:${toUserId}`).emit("gameInvite", {
-      gameId: game.id,
-      fromUserId: userId,
-      fromNickname: fromUser?.nickname || fromUser?.username || "Someone",
+      gameId: game.id, fromUserId: userId,
+      fromNickname: fromName,
       fromAvatarColor: fromUser?.avatarColor || "#3b82f6",
       fromAvatarUrl: fromUser?.avatarUrl ?? null,
       fromCountry: fromUser?.country ?? null,
     });
 
+    await createNotification(toUserId, "game_invite", userId, game.id, `${fromName} challenged you to a game`);
     res.json({ success: true, gameId: game.id });
   } catch (err) {
     logger.error({ err }, "Failed to send direct challenge");
@@ -385,29 +281,13 @@ router.post("/challenge/:toUserId", requireAuth, async (req, res) => {
 router.get("/profiles/search", requireAuth, async (req, res) => {
   const userId = (req as any).userId as string;
   const q = (req.query.q as string | undefined)?.trim() ?? "";
-
-  if (!q || q.length < 2) {
-    res.json({ profiles: [] });
-    return;
-  }
-
+  if (!q || q.length < 2) { res.json({ profiles: [] }); return; }
   try {
-    const users = await db
-      .select()
-      .from(usersTable)
-      .where(ilike(usersTable.nickname, `%${q}%`))
-      .limit(10);
-
-    const profiles = users
-      .filter((u) => u.id !== userId)
-      .map((u) => ({
-        userId: u.id,
-        nickname: u.nickname || u.username,
-        country: u.country || "Other",
-        avatarColor: u.avatarColor || "#3b82f6",
-        avatarUrl: u.avatarUrl ?? null,
-      }));
-
+    const users = await db.select().from(usersTable).where(ilike(usersTable.nickname, `%${q}%`)).limit(10);
+    const profiles = users.filter((u) => u.id !== userId).map((u) => ({
+      userId: u.id, nickname: u.nickname || u.username,
+      country: u.country || "Other", avatarColor: u.avatarColor || "#3b82f6", avatarUrl: u.avatarUrl ?? null,
+    }));
     res.json({ profiles });
   } catch (err) {
     logger.error({ err }, "Failed to search profiles");
@@ -415,11 +295,11 @@ router.get("/profiles/search", requireAuth, async (req, res) => {
   }
 });
 
-function notifyFriendRequest(toUserId: string, request: { id: string; fromUserId: string }) {
-  getSocketServer()?.to(`user:${toUserId}`).emit("friendRequest", {
-    requestId: request.id,
-    fromUserId: request.fromUserId,
-  });
+async function notifyFriendRequest(toUserId: string, request: { id: string; fromUserId: string }, fromUserId: string) {
+  getSocketServer()?.to(`user:${toUserId}`).emit("friendRequest", { requestId: request.id, fromUserId: request.fromUserId });
+  const [sender] = await db.select().from(usersTable).where(eq(usersTable.id, fromUserId)).catch(() => [null]);
+  const name = (sender as any)?.nickname || (sender as any)?.username || "Someone";
+  await createNotification(toUserId, "friend_request", fromUserId, request.id, `${name} sent you a friend request`);
 }
 
 export default router;

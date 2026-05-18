@@ -50,7 +50,7 @@ export default function AuthPage() {
       if (!res.ok) throw new Error("Registration failed");
       const data = await res.json();
       login(data.token, data.user);
-      setLocation("/lobby");
+      setLocation("/onboarding");
     } catch (err) {
       toast({ title: "Error", description: "Registration failed", variant: "destructive" });
     } finally {

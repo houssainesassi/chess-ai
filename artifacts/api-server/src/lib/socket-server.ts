@@ -3,8 +3,9 @@ import { Server as SocketIOServer } from "socket.io";
 import { logger } from "./logger";
 import { chessEngine } from "./chess-engine";
 import type { GameState } from "./chess-engine";
-import { db, chatMessagesTable, chessGamesTable, usersTable } from "@workspace/db";
-import { eq, and, lt } from "drizzle-orm";
+import { db, chatMessagesTable, chessGamesTable, usersTable, directMessagesTable } from "@workspace/db";
+import { eq, and, lt, isNull } from "drizzle-orm";
+import { initNotify, createNotification } from "./notify";
 import { gameRoomManager } from "./game-room-manager";
 
 let io: SocketIOServer | null = null;
@@ -88,6 +89,8 @@ export function initSocketServer(httpServer: HttpServer): SocketIOServer {
     },
   });
 
+  initNotify(io);
+
   io.on("connection", (socket) => {
     logger.info({ socketId: socket.id }, "Client connected");
 
@@ -149,6 +152,53 @@ export function initSocketServer(httpServer: HttpServer): SocketIOServer {
     socket.on("heartbeat", ({ userId }: { userId: string }) => {
       if (!userId) return;
       db.update(usersTable).set({ updatedAt: new Date() }).where(eq(usersTable.id, userId)).catch(() => {});
+    });
+
+    // ── Direct Messages ────────────────────────────────────────────
+    socket.on("dmSend", async ({ toUserId, message }: { toUserId: string; message: string }) => {
+      const fromUserId = (socket as any)._registeredUserId as string;
+      if (!fromUserId || !toUserId || !message?.trim()) return;
+      try {
+        const [saved] = await db
+          .insert(directMessagesTable)
+          .values({ fromUserId, toUserId, message: message.trim() })
+          .returning();
+        io?.to(`user:${toUserId}`).emit("dmReceived", {
+          id: saved.id,
+          fromUserId: saved.fromUserId,
+          message: saved.message,
+          createdAt: saved.createdAt,
+        });
+        const [sender] = await db.select().from(usersTable).where(eq(usersTable.id, fromUserId));
+        const senderName = sender?.nickname || sender?.username || "Someone";
+        await createNotification(toUserId, "direct_message", fromUserId, saved.id, `${senderName}: ${saved.message.slice(0, 80)}`);
+      } catch (err) {
+        logger.error({ err }, "Failed to relay DM via socket");
+      }
+    });
+
+    socket.on("dmTyping", ({ toUserId, isTyping }: { toUserId: string; isTyping: boolean }) => {
+      const fromUserId = (socket as any)._registeredUserId as string;
+      if (!fromUserId || !toUserId) return;
+      io?.to(`user:${toUserId}`).emit("dmTyping", { fromUserId, isTyping });
+    });
+
+    socket.on("dmSeen", async ({ fromUserId }: { fromUserId: string }) => {
+      const toUserId = (socket as any)._registeredUserId as string;
+      if (!toUserId || !fromUserId) return;
+      try {
+        await db
+          .update(directMessagesTable)
+          .set({ seenAt: new Date() })
+          .where(and(
+            eq(directMessagesTable.fromUserId, fromUserId),
+            eq(directMessagesTable.toUserId, toUserId),
+            isNull(directMessagesTable.seenAt),
+          ));
+        io?.to(`user:${fromUserId}`).emit("dmSeen", { byUserId: toUserId });
+      } catch (err) {
+        logger.error({ err }, "Failed to mark DM seen via socket");
+      }
     });
 
     // ── Spectator ─────────────────────────────────────────────────

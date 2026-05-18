@@ -16,6 +16,8 @@ import HistoryReplayPage from "@/pages/history-replay";
 import SettingsPage from "@/pages/settings";
 import ProfilePage from "@/pages/profile";
 import PlayersPage from "@/pages/players";
+import OnboardingPage from "@/pages/onboarding";
+import MessagesPage from "@/pages/messages";
 import { SocketNotificationProvider } from "@/hooks/use-socket-notifications";
 import { AIControlProvider } from "@/contexts/ai-control-context";
 import { AIControlWidget } from "@/components/ai-control/AIControlWidget";
@@ -25,16 +27,16 @@ const queryClient = new QueryClient();
 
 function ProtectedRoute({ component: Component, ...rest }: any) {
   const { user, isLoading } = useAuth();
-  
+
   if (isLoading) {
     return <div className="min-h-screen flex items-center justify-center bg-background text-foreground">Loading...</div>;
   }
-  
+
   if (!user) {
     window.location.href = "/";
     return null;
   }
-  
+
   return <Component {...rest} />;
 }
 
@@ -45,6 +47,7 @@ function Router() {
     <Layout>
       <Switch>
         <Route path="/" component={user ? () => { window.location.href = "/lobby"; return null; } : AuthPage} />
+        <Route path="/onboarding" component={() => <ProtectedRoute component={OnboardingPage} />} />
         <Route path="/lobby" component={() => <ProtectedRoute component={LobbyPage} />} />
         <Route path="/game" component={() => <ProtectedRoute component={GamePage} />} />
         <Route path="/game/:id" component={() => <ProtectedRoute component={MultiplayerGamePage} />} />
@@ -54,6 +57,8 @@ function Router() {
         <Route path="/settings" component={() => <ProtectedRoute component={SettingsPage} />} />
         <Route path="/profile/:userId" component={() => <ProtectedRoute component={ProfilePage} />} />
         <Route path="/players" component={() => <ProtectedRoute component={PlayersPage} />} />
+        <Route path="/messages" component={() => <ProtectedRoute component={MessagesPage} />} />
+        <Route path="/messages/:userId" component={() => <ProtectedRoute component={MessagesPage} />} />
         <Route component={NotFound} />
       </Switch>
     </Layout>

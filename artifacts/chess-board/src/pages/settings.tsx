@@ -42,7 +42,11 @@ export default function SettingsPage() {
   const { play: playMeme } = useMemeAudio();
 
   const [nickname, setNickname] = useState("");
+  const [fullName, setFullName] = useState("");
   const [country, setCountry] = useState("Other");
+  const [city, setCity] = useState("");
+  const [age, setAge] = useState("");
+  const [bio, setBio] = useState("");
   const [avatarColor, setAvatarColor] = useState(AVATAR_COLORS[0]);
   const [profileLoading, setProfileLoading] = useState(true);
   const [saveLoading, setSaveLoading] = useState(false);
@@ -54,7 +58,11 @@ export default function SettingsPage() {
       try {
         const profile = await api.getMyProfile(token);
         setNickname(profile.nickname);
+        setFullName(profile.fullName || "");
         setCountry(profile.country || "Other");
+        setCity(profile.city || "");
+        setAge(profile.age != null ? String(profile.age) : "");
+        setBio(profile.bio || "");
         setAvatarColor(profile.avatarColor || AVATAR_COLORS[0]);
       } catch (_) {
         setNickname(user?.username || "");
@@ -73,7 +81,15 @@ export default function SettingsPage() {
     }
     setSaveLoading(true);
     try {
-      await api.saveProfile(token, { nickname: nickname.trim(), country, avatarColor });
+      await api.saveProfile(token, {
+        nickname: nickname.trim(),
+        fullName: fullName.trim() || undefined,
+        country,
+        city: city.trim() || undefined,
+        age: age ? Number(age) : undefined,
+        bio: bio.trim() || undefined,
+        avatarColor,
+      });
       toast({ title: "Profile saved successfully" });
     } catch (err: any) {
       toast({ title: err.message || "Failed to save profile", variant: "destructive" });
@@ -136,6 +152,18 @@ export default function SettingsPage() {
               </div>
 
               <div className="space-y-2">
+                <Label htmlFor="fullName">Full Name</Label>
+                <Input
+                  id="fullName"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  placeholder="Magnus Carlsen"
+                  maxLength={64}
+                  className="bg-background"
+                />
+              </div>
+
+              <div className="space-y-2">
                 <Label htmlFor="nickname">Display Name</Label>
                 <Input
                   id="nickname"
@@ -148,18 +176,61 @@ export default function SettingsPage() {
                 <p className="text-xs text-muted-foreground">This name is shown to other players</p>
               </div>
 
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label htmlFor="country">Country</Label>
+                  <select
+                    id="country"
+                    value={country}
+                    onChange={(e) => setCountry(e.target.value)}
+                    className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                  >
+                    {COUNTRIES.map((c) => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="city">City</Label>
+                  <Input
+                    id="city"
+                    value={city}
+                    onChange={(e) => setCity(e.target.value)}
+                    placeholder="Tunis"
+                    maxLength={64}
+                    className="bg-background"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label htmlFor="age">Age <span className="text-muted-foreground text-xs">(optional)</span></Label>
+                  <Input
+                    id="age"
+                    type="number"
+                    min={6}
+                    max={120}
+                    value={age}
+                    onChange={(e) => setAge(e.target.value)}
+                    placeholder="25"
+                    className="bg-background"
+                  />
+                </div>
+              </div>
+
               <div className="space-y-2">
-                <Label htmlFor="country">Country</Label>
-                <select
-                  id="country"
-                  value={country}
-                  onChange={(e) => setCountry(e.target.value)}
-                  className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                >
-                  {COUNTRIES.map((c) => (
-                    <option key={c} value={c}>{c}</option>
-                  ))}
-                </select>
+                <Label htmlFor="bio">Bio <span className="text-muted-foreground text-xs">(optional)</span></Label>
+                <textarea
+                  id="bio"
+                  value={bio}
+                  onChange={(e) => setBio(e.target.value)}
+                  placeholder="Chess enthusiast, e4 player..."
+                  maxLength={200}
+                  rows={2}
+                  className="w-full rounded-md border border-input bg-background text-sm text-foreground px-3 py-2 resize-none focus:outline-none focus:ring-1 focus:ring-ring"
+                />
+                <p className="text-xs text-muted-foreground text-right">{bio.length}/200</p>
               </div>
 
               <div className="space-y-2">

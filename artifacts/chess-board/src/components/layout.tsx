@@ -2,16 +2,11 @@ import { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
-import { LogOut, Swords, History, Users, Settings, Globe2 } from "lucide-react";
-
-// Pages that should be completely full-screen (no sidebar)
-const FULLSCREEN_ROUTES = ["/game"];
+import { LogOut, Swords, History, Users, Settings, Globe2, MessageCircle } from "lucide-react";
+import { NotificationBell } from "@/components/notification-bell";
 
 function isFullscreenRoute(path: string) {
-  return (
-    path === "/game" ||
-    path.startsWith("/game/")
-  );
+  return path === "/game" || path.startsWith("/game/");
 }
 
 export function Layout({ children }: { children: ReactNode }) {
@@ -20,7 +15,6 @@ export function Layout({ children }: { children: ReactNode }) {
 
   if (!user) return <>{children}</>;
 
-  // Full-screen game pages: no sidebar, no scrolling
   if (isFullscreenRoute(location)) {
     return (
       <div className="h-screen w-screen overflow-hidden bg-background text-foreground flex flex-col">
@@ -29,9 +23,12 @@ export function Layout({ children }: { children: ReactNode }) {
     );
   }
 
+  const isMessages = location.startsWith("/messages");
+
   const navItems = [
     { href: "/lobby", label: "Play", icon: Swords },
     { href: "/players", label: "Players", icon: Globe2 },
+    { href: "/messages", label: "Messages", icon: MessageCircle },
     { href: "/history", label: "History", icon: History },
     { href: `/profile/${user?.id}`, label: "My Profile", icon: Users },
     { href: "/settings", label: "Settings", icon: Settings },
@@ -40,17 +37,24 @@ export function Layout({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen bg-background flex flex-col md:flex-row">
       <aside className="w-full md:w-64 bg-card border-b md:border-b-0 md:border-r border-border p-4 flex flex-col shrink-0">
-        {/* Logo */}
+        {/* Logo + notification bell */}
         <div className="flex items-center gap-3 mb-8 px-2">
           <img src="/icon.png" alt="Smart Chess Board" className="w-10 h-10 rounded-xl object-cover" />
-          <span className="font-bold text-xl tracking-tight hidden md:block">Smart Chess</span>
+          <span className="font-bold text-xl tracking-tight hidden md:block flex-1">Smart Chess</span>
+          <div className="hidden md:block ml-auto">
+            <NotificationBell />
+          </div>
         </div>
 
         {/* Nav */}
         <nav className="flex-1 flex flex-row md:flex-col gap-1 overflow-x-auto md:overflow-visible">
           {navItems.map((item) => {
             const Icon = item.icon;
-            const isActive = location.startsWith(item.href);
+            const isActive = item.href === "/messages"
+              ? location.startsWith("/messages")
+              : item.href.startsWith("/profile")
+              ? location.startsWith("/profile")
+              : location.startsWith(item.href);
             return (
               <Link
                 key={item.href}
@@ -65,6 +69,11 @@ export function Layout({ children }: { children: ReactNode }) {
           })}
         </nav>
 
+        {/* Mobile: notification bell */}
+        <div className="md:hidden flex justify-center py-2">
+          <NotificationBell />
+        </div>
+
         {/* User info + logout */}
         <div className="mt-auto pt-4 border-t border-border hidden md:block">
           <div className="flex items-center gap-3 px-2 mb-3">
@@ -73,7 +82,7 @@ export function Layout({ children }: { children: ReactNode }) {
             </div>
             <div className="flex flex-col min-w-0">
               <span className="text-sm font-bold truncate">{user.username}</span>
-              <span className="text-xs text-muted-foreground">Rating: {user.rating || 1200}</span>
+              <span className="text-xs text-muted-foreground">Rating: {(user as any).rating || 1200}</span>
             </div>
           </div>
           <Button variant="ghost" className="w-full justify-start text-muted-foreground hover:text-foreground" onClick={logout}>
@@ -83,7 +92,7 @@ export function Layout({ children }: { children: ReactNode }) {
         </div>
       </aside>
 
-      <main className="flex-1 overflow-auto">
+      <main className={`flex-1 ${isMessages ? "overflow-hidden flex flex-col" : "overflow-auto"}`}>
         {children}
       </main>
     </div>

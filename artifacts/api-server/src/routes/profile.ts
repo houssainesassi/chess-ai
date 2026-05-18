@@ -1,31 +1,32 @@
 import { Router } from "express";
-import { eq, inArray, ilike } from "drizzle-orm";
+import { eq, ilike } from "drizzle-orm";
 import { db, usersTable } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
 import { logger } from "../lib/logger";
 
 const router = Router();
 
-const profileSelect = {
-  userId: usersTable.id,
-  nickname: usersTable.nickname,
-  country: usersTable.country,
-  avatarColor: usersTable.avatarColor,
-  avatarUrl: usersTable.avatarUrl,
-  username: usersTable.username,
-};
+function formatProfile(u: typeof usersTable.$inferSelect) {
+  return {
+    userId: u.id,
+    username: u.username,
+    fullName: u.fullName ?? null,
+    nickname: u.nickname || u.username,
+    country: u.country || "Other",
+    city: u.city ?? null,
+    age: u.age ?? null,
+    bio: u.bio ?? null,
+    avatarColor: u.avatarColor || "#3b82f6",
+    avatarUrl: u.avatarUrl ?? null,
+    isOnline: u.isOnline ?? false,
+    createdAt: u.createdAt,
+  };
+}
 
-router.get("/players", requireAuth, async (req, res) => {
+router.get("/players", requireAuth, async (_req, res) => {
   try {
-    const users = await db.select(profileSelect).from(usersTable);
-    const profiles = users.map((u) => ({
-      userId: u.userId,
-      nickname: u.nickname || u.username,
-      country: u.country || "Other",
-      avatarColor: u.avatarColor || "#3b82f6",
-      avatarUrl: u.avatarUrl ?? null,
-    }));
-    res.json({ profiles });
+    const users = await db.select().from(usersTable);
+    res.json({ profiles: users.map(formatProfile) });
   } catch (err) {
     logger.error({ err }, "Failed to list players");
     res.status(500).json({ error: "internal_error", message: "Failed to list players" });
@@ -39,21 +40,12 @@ router.get("/profiles", async (req, res) => {
     return;
   }
   const userIds = raw.split(",").map((id) => id.trim()).filter(Boolean);
-  if (userIds.length === 0) {
-    res.json({ profiles: [] });
-    return;
-  }
+  if (userIds.length === 0) { res.json({ profiles: [] }); return; }
+
   try {
-    const users = await db.select(profileSelect).from(usersTable);
-    const matched = users.filter((u) => userIds.includes(u.userId));
-    const profiles = matched.map((u) => ({
-      userId: u.userId,
-      nickname: u.nickname || u.username,
-      country: u.country || "Other",
-      avatarColor: u.avatarColor || "#3b82f6",
-      avatarUrl: u.avatarUrl ?? null,
-    }));
-    res.json({ profiles });
+    const users = await db.select().from(usersTable);
+    const matched = users.filter((u) => userIds.includes(u.id));
+    res.json({ profiles: matched.map(formatProfile) });
   } catch (err) {
     logger.error({ err }, "Failed to get profiles");
     res.status(500).json({ error: "internal_error", message: "Failed to get profiles" });
@@ -63,27 +55,30 @@ router.get("/profiles", async (req, res) => {
 router.get("/profile", requireAuth, async (req, res) => {
   const userId = (req as any).userId as string;
   try {
-    const [user] = await db.select(profileSelect).from(usersTable).where(eq(usersTable.id, userId));
-    if (!user) {
-      res.status(404).json({ error: "not_found", message: "User not found" });
-      return;
-    }
-    res.json({
-      userId: user.userId,
-      nickname: user.nickname || user.username,
-      country: user.country || "Other",
-      avatarColor: user.avatarColor || "#3b82f6",
-      avatarUrl: user.avatarUrl ?? null,
-    });
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+    if (!user) { res.status(404).json({ error: "not_found", message: "User not found" }); return; }
+    res.json(formatProfile(user));
   } catch (err) {
     logger.error({ err }, "Failed to get profile");
     res.status(500).json({ error: "internal_error", message: "Failed to get profile" });
   }
 });
 
+router.get("/profile/:userId", async (req, res) => {
+  const targetId = req.params.userId;
+  try {
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, targetId));
+    if (!user) { res.status(404).json({ error: "not_found", message: "User not found" }); return; }
+    res.json(formatProfile(user));
+  } catch (err) {
+    logger.error({ err }, "Failed to get user profile");
+    res.status(500).json({ error: "internal_error", message: "Failed to get profile" });
+  }
+});
+
 router.post("/profile", requireAuth, async (req, res) => {
   const userId = (req as any).userId as string;
-  const { nickname, country, avatarUrl, avatarColor } = req.body;
+  const { nickname, fullName, country, city, age, bio, avatarUrl, avatarColor } = req.body;
 
   if (!nickname || typeof nickname !== "string" || nickname.trim().length === 0) {
     res.status(400).json({ error: "validation_error", message: "nickname is required" });
@@ -95,7 +90,11 @@ router.post("/profile", requireAuth, async (req, res) => {
       .update(usersTable)
       .set({
         nickname: nickname.trim(),
+        fullName: fullName?.trim() || null,
         country: (country || "Other").trim(),
+        city: city?.trim() || null,
+        age: age ? Number(age) : null,
+        bio: bio?.trim() || null,
         avatarColor: avatarColor || "#3b82f6",
         avatarUrl: avatarUrl ?? null,
         updatedAt: new Date(),
@@ -103,13 +102,7 @@ router.post("/profile", requireAuth, async (req, res) => {
       .where(eq(usersTable.id, userId))
       .returning();
 
-    res.json({
-      userId: updated.id,
-      nickname: updated.nickname || updated.username,
-      country: updated.country || "Other",
-      avatarColor: updated.avatarColor || "#3b82f6",
-      avatarUrl: updated.avatarUrl ?? null,
-    });
+    res.json(formatProfile(updated));
   } catch (err) {
     logger.error({ err }, "Failed to save profile");
     res.status(500).json({ error: "internal_error", message: "Failed to save profile" });
@@ -125,6 +118,25 @@ router.delete("/account", requireAuth, async (req, res) => {
   } catch (err) {
     logger.error({ err }, "Failed to delete account");
     res.status(500).json({ error: "internal_error", message: "Failed to delete account" });
+  }
+});
+
+router.get("/profiles/search", requireAuth, async (req, res) => {
+  const userId = (req as any).userId as string;
+  const q = (req.query.q as string | undefined)?.trim() ?? "";
+  if (!q || q.length < 2) { res.json({ profiles: [] }); return; }
+
+  try {
+    const users = await db
+      .select()
+      .from(usersTable)
+      .where(ilike(usersTable.nickname, `%${q}%`))
+      .limit(10);
+
+    res.json({ profiles: users.filter((u) => u.id !== userId).map(formatProfile) });
+  } catch (err) {
+    logger.error({ err }, "Failed to search profiles");
+    res.status(500).json({ error: "internal_error", message: "Failed to search profiles" });
   }
 });
 

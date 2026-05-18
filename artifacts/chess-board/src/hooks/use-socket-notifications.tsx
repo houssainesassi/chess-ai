@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, createContext, useContext } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import { io, Socket } from "socket.io-client";
 import { Button } from "@/components/ui/button";
 import { Swords, X } from "lucide-react";
+import { api } from "@/lib/api";
 
 interface GameInvite {
   gameId: string;
@@ -14,6 +15,20 @@ interface GameInvite {
   fromCountry?: string;
 }
 
+interface NotificationsContextValue {
+  unreadCount: number;
+  clearUnread: () => void;
+}
+
+export const NotificationsContext = createContext<NotificationsContextValue>({
+  unreadCount: 0,
+  clearUnread: () => {},
+});
+
+export function useNotifications() {
+  return useContext(NotificationsContext);
+}
+
 export function SocketNotificationProvider({ children }: { children: React.ReactNode }) {
   const { token, user } = useAuth();
   const { toast } = useToast();
@@ -21,6 +36,15 @@ export function SocketNotificationProvider({ children }: { children: React.React
   const socketRef = useRef<Socket | null>(null);
   const [pendingInvite, setPendingInvite] = useState<GameInvite | null>(null);
   const [declining, setDeclining] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  // Fetch initial unread count from API
+  useEffect(() => {
+    if (!token) return;
+    api.getNotifications(token)
+      .then((data) => setUnreadCount(data.unreadCount))
+      .catch(() => {});
+  }, [token]);
 
   useEffect(() => {
     if (!token || !user) {
@@ -68,11 +92,17 @@ export function SocketNotificationProvider({ children }: { children: React.React
       });
     });
 
+    socket.on("newNotification", (_data: { id: string; type: string; message: string }) => {
+      setUnreadCount((c) => c + 1);
+    });
+
     return () => {
       clearInterval(heartbeatInterval);
       socket.disconnect();
     };
   }, [token, user?.id]);
+
+  const clearUnread = () => setUnreadCount(0);
 
   const acceptInvite = () => {
     if (!pendingInvite) return;
@@ -96,12 +126,12 @@ export function SocketNotificationProvider({ children }: { children: React.React
   };
 
   return (
-    <>
+    <NotificationsContext.Provider value={{ unreadCount, clearUnread }}>
       {children}
 
       {pendingInvite && (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-card border border-border rounded-2xl p-8 flex flex-col items-center gap-5 shadow-2xl max-w-sm w-full mx-4 animate-in zoom-in-95 duration-200">
+          <div className="bg-card border border-border rounded-2xl p-8 flex flex-col items-center gap-5 shadow-2xl max-w-sm w-full mx-4 animate-in zoom-in-95 duration-200 relative">
             <button
               className="absolute top-4 right-4 text-muted-foreground hover:text-foreground transition-colors"
               onClick={declineInvite}
@@ -131,21 +161,14 @@ export function SocketNotificationProvider({ children }: { children: React.React
             </div>
 
             <div className="flex gap-3 w-full">
-              <Button className="flex-1" onClick={acceptInvite}>
-                Accept
-              </Button>
-              <Button
-                variant="outline"
-                className="flex-1"
-                onClick={declineInvite}
-                disabled={declining}
-              >
+              <Button className="flex-1" onClick={acceptInvite}>Accept</Button>
+              <Button variant="outline" className="flex-1" onClick={declineInvite} disabled={declining}>
                 Decline
               </Button>
             </div>
           </div>
         </div>
       )}
-    </>
+    </NotificationsContext.Provider>
   );
 }

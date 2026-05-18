@@ -114,6 +114,26 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ fen, depth, previousFen, lastMove }),
     }),
+
+  // Notifications
+  getNotifications: (token: string) =>
+    req<{ notifications: NotificationItem[]; unreadCount: number }>("/notifications", { token }),
+  markAllNotificationsRead: (token: string) =>
+    req<{ success: boolean }>("/notifications/read-all", { method: "POST", token }),
+
+  // Direct Messages
+  getConversations: (token: string) =>
+    req<{ conversations: Conversation[] }>("/messages", { token }),
+  getMessagesWithUser: (token: string, partnerId: string) =>
+    req<{ messages: DirectMessage[]; partner: Conversation["partner"] | null }>(`/messages/${partnerId}`, { token }),
+  sendMessage: (token: string, partnerId: string, message: string) =>
+    req<DirectMessage>(`/messages/${partnerId}`, {
+      method: "POST",
+      token,
+      body: JSON.stringify({ message }),
+    }),
+  markMessagesSeen: (token: string, partnerId: string) =>
+    req<{ success: boolean }>(`/messages/${partnerId}/seen`, { method: "POST", token }),
 };
 
 export interface User {
@@ -124,13 +144,56 @@ export interface User {
 
 export interface Profile {
   userId: string;
+  username: string;
   nickname: string;
+  fullName?: string | null;
   country: string;
+  city?: string | null;
+  age?: number | null;
+  bio?: string | null;
   avatarUrl?: string | null;
   avatarColor: string;
+  isOnline?: boolean;
   email?: string | null;
   createdAt?: string;
   updatedAt?: string;
+}
+
+export interface NotificationItem {
+  id: string;
+  userId: string;
+  type: string;
+  fromUserId: string | null;
+  refId: string | null;
+  message: string;
+  readAt: string | null;
+  createdAt: string;
+}
+
+export interface DirectMessage {
+  id: string;
+  fromUserId: string;
+  toUserId: string;
+  message: string;
+  seenAt: Date | null;
+  createdAt: Date;
+}
+
+export interface Conversation {
+  partnerId: string;
+  lastMessage: string;
+  lastSenderId: string;
+  lastMessageAt: Date;
+  unreadCount: number;
+  lastSeenAt: Date | null;
+  partner: {
+    userId: string;
+    username: string;
+    nickname: string;
+    avatarColor: string | null;
+    avatarUrl: string | null;
+    isOnline: boolean;
+  } | null;
 }
 
 export interface FriendEntry {
