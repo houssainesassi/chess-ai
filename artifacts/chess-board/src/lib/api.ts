@@ -289,6 +289,7 @@ export interface PlayerStatus {
   country: string | null;
   isOnline: boolean;
   lastSeen: string | null;
+  rating: number;
   wins: number;
 }
 

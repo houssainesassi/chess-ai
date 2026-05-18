@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { sql } from "drizzle-orm";
-import { db } from "@workspace/db";
+import { eq, or, and, inArray } from "drizzle-orm";
+import { db, usersTable, chessGamesTable } from "@workspace/db";
 import { requireAuth } from "../middlewares/auth";
 import { logger } from "../lib/logger";
 
@@ -8,36 +8,47 @@ const router = Router();
 
 router.get("/status/users", requireAuth, async (_req, res) => {
   try {
-    const rows = await db.execute(sql`
-      WITH wins_cte AS (
-        SELECT
-          CASE
-            WHEN winner = 'white' THEN white_player_id
-            WHEN winner = 'black' THEN black_player_id
-          END AS user_id,
-          COUNT(*)::int AS wins
-        FROM chess_games
-        WHERE status = 'completed'
-          AND black_player_id IS NOT NULL
-          AND winner IN ('white', 'black')
-        GROUP BY user_id
-      )
-      SELECT
-        u.id,
-        u.username,
-        u.nickname,
-        u.avatar_color AS "avatarColor",
-        u.avatar_url   AS "avatarUrl",
-        u.country,
-        u.is_online    AS "isOnline",
-        u.updated_at   AS "lastSeen",
-        COALESCE(w.wins, 0)::int AS wins
-      FROM users u
-      LEFT JOIN wins_cte w ON w.user_id = u.id
-      ORDER BY u.is_online DESC, u.username ASC
-    `);
+    const users = await db.select().from(usersTable).orderBy(usersTable.username);
 
-    res.json({ users: rows.rows });
+    const completedGames = await db
+      .select({
+        whitePlayerId: chessGamesTable.whitePlayerId,
+        blackPlayerId: chessGamesTable.blackPlayerId,
+        winner: chessGamesTable.winner,
+      })
+      .from(chessGamesTable)
+      .where(
+        and(
+          eq(chessGamesTable.status, "completed"),
+          or(
+            eq(chessGamesTable.winner, "white"),
+            eq(chessGamesTable.winner, "black"),
+          ),
+        ),
+      );
+
+    const winCounts: Record<string, number> = {};
+    for (const g of completedGames) {
+      const winnerId = g.winner === "white" ? g.whitePlayerId : g.blackPlayerId;
+      if (winnerId) winCounts[winnerId] = (winCounts[winnerId] ?? 0) + 1;
+    }
+
+    const result = users
+      .map((u) => ({
+        id: u.id,
+        username: u.username,
+        nickname: u.nickname,
+        avatarColor: u.avatarColor,
+        avatarUrl: u.avatarUrl,
+        country: u.country,
+        isOnline: u.isOnline ?? false,
+        lastSeen: u.updatedAt?.toISOString() ?? null,
+        rating: u.rating,
+        wins: winCounts[u.id] ?? 0,
+      }))
+      .sort((a, b) => (b.isOnline ? 1 : 0) - (a.isOnline ? 1 : 0) || a.username.localeCompare(b.username));
+
+    res.json({ users: result });
   } catch (err) {
     logger.error({ err }, "Failed to fetch status users");
     res.status(500).json({ error: "internal_error", message: "Failed to fetch users" });
