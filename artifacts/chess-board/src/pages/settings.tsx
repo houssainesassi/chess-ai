@@ -6,13 +6,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Trash2, Save, User, Volume2, Laugh, Mic2 } from "lucide-react";
+import { Trash2, Save, User, Volume2, Laugh, Mic2, Mic, MicOff, Hand, Eye, Activity, MonitorCheck } from "lucide-react";
 import { useLocation } from "wouter";
 import { usePreferences, BOARD_THEMES, SOUND_PACKS } from "@/hooks/use-preferences";
 import { useMemeAudio } from "@/hooks/use-meme-audio";
 import type { MemeEvent } from "@/lib/meme-audio/synth-reactions";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
+import { useAIControl } from "@/contexts/ai-control-context";
 
 const AVATAR_COLORS = [
   "#3b82f6", "#10b981", "#f59e0b", "#ef4444",
@@ -39,6 +40,13 @@ export default function SettingsPage() {
     memeVolume, setMemeVolume,
     commentatorMode, setCommentatorMode,
   } = usePreferences();
+  const {
+    showPopup, setShowPopup,
+    voiceEnabled, gestureEnabled, gazeEnabled,
+    voiceStatus, cameraStatus,
+    toggleVoice, toggleGesture, toggleGaze,
+    platform,
+  } = useAIControl();
   const { play: playMeme } = useMemeAudio();
 
   const [nickname, setNickname] = useState("");
@@ -439,6 +447,160 @@ export default function SettingsPage() {
               disabled={!memeMode}
               aria-label="Toggle commentator mode"
             />
+          </div>
+
+        </CardContent>
+      </Card>
+
+      {/* ── AI Control ── */}
+      <Card className="bg-card border-border">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Activity className="w-5 h-5 text-[#81b64c]" />
+            AI Control
+          </CardTitle>
+          <CardDescription>
+            Control the app using your voice, hand gestures, or eye tracking
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-5">
+
+          {/* Show popup toggle */}
+          <div className="flex items-center justify-between py-1">
+            <div>
+              <p className="font-medium text-sm">Show AI Control Popup</p>
+              <p className="text-xs text-muted-foreground">
+                Display the floating control widget on screen
+              </p>
+            </div>
+            <Switch
+              checked={showPopup}
+              onCheckedChange={setShowPopup}
+              aria-label="Toggle AI control popup"
+            />
+          </div>
+
+          {/* Input mode toggles */}
+          <div className="space-y-2">
+            <Label className="text-sm text-muted-foreground">Input Modes</Label>
+            <div className="grid grid-cols-3 gap-3">
+
+              {/* Voice */}
+              <button
+                onClick={toggleVoice}
+                disabled={!platform.speechSupported}
+                className={`flex flex-col items-center gap-2 py-3 px-2 rounded-xl border-2 transition-all
+                  ${!platform.speechSupported ? "opacity-30 cursor-not-allowed border-border" :
+                    voiceEnabled
+                      ? "border-[#81b64c] bg-[#81b64c]/10 text-[#81b64c]"
+                      : "border-border hover:border-[#81b64c]/40 text-muted-foreground hover:text-foreground"
+                  }`}
+              >
+                {voiceEnabled
+                  ? <Mic className="w-5 h-5" />
+                  : <MicOff className="w-5 h-5" />
+                }
+                <span className="text-xs font-semibold">Voice</span>
+                <span className={`text-[10px] ${voiceEnabled ? "opacity-80" : "opacity-50"}`}>
+                  {!platform.speechSupported ? "N/A" :
+                    voiceStatus === "listening" ? "listening" :
+                    voiceStatus === "processing" ? "thinking" :
+                    voiceStatus === "error" ? "error" :
+                    voiceEnabled ? "on" : "off"}
+                </span>
+              </button>
+
+              {/* Hand */}
+              <button
+                onClick={toggleGesture}
+                disabled={!platform.cameraSupported}
+                className={`flex flex-col items-center gap-2 py-3 px-2 rounded-xl border-2 transition-all
+                  ${!platform.cameraSupported ? "opacity-30 cursor-not-allowed border-border" :
+                    gestureEnabled
+                      ? "border-green-500 bg-green-500/10 text-green-400"
+                      : "border-border hover:border-green-500/40 text-muted-foreground hover:text-foreground"
+                  }`}
+              >
+                <Hand className="w-5 h-5" />
+                <span className="text-xs font-semibold">Hand</span>
+                <span className={`text-[10px] ${gestureEnabled ? "opacity-80" : "opacity-50"}`}>
+                  {!platform.cameraSupported ? "N/A" : gestureEnabled ? "tracking" : "off"}
+                </span>
+              </button>
+
+              {/* Eye */}
+              <button
+                onClick={toggleGaze}
+                disabled={!platform.cameraSupported}
+                className={`flex flex-col items-center gap-2 py-3 px-2 rounded-xl border-2 transition-all
+                  ${!platform.cameraSupported ? "opacity-30 cursor-not-allowed border-border" :
+                    gazeEnabled
+                      ? "border-cyan-400 bg-cyan-400/10 text-cyan-400"
+                      : "border-border hover:border-cyan-400/40 text-muted-foreground hover:text-foreground"
+                  }`}
+              >
+                <Eye className="w-5 h-5" />
+                <span className="text-xs font-semibold">Eye</span>
+                <span className={`text-[10px] ${gazeEnabled ? "opacity-80" : "opacity-50"}`}>
+                  {!platform.cameraSupported ? "N/A" : gazeEnabled ? "tracking" : "off"}
+                </span>
+              </button>
+
+            </div>
+          </div>
+
+          {/* Camera status badge */}
+          {(gestureEnabled || gazeEnabled) && (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground px-1">
+              <span className={`w-2 h-2 rounded-full shrink-0 ${
+                cameraStatus === "ready" ? "bg-green-500" :
+                cameraStatus === "loading" ? "bg-yellow-400 animate-pulse" :
+                cameraStatus === "error" ? "bg-red-500" : "bg-muted-foreground/40"
+              }`} />
+              Camera:{" "}
+              <span className="text-foreground font-medium capitalize">{cameraStatus}</span>
+            </div>
+          )}
+
+          {/* Platform info */}
+          <div className="space-y-2 pt-1 border-t border-border">
+            <Label className="text-xs text-muted-foreground flex items-center gap-1.5">
+              <MonitorCheck className="w-3.5 h-3.5" />
+              Platform Support
+            </Label>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+              {[
+                { label: "Speech API", ok: platform.speechSupported },
+                { label: "Camera / WebRTC", ok: platform.cameraSupported },
+                { label: "MediaPipe AI", ok: platform.mediaPipeSupported },
+              ].map(({ label, ok }) => (
+                <div key={label} className="flex items-center gap-2">
+                  <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${ok ? "bg-green-500" : "bg-red-500/60"}`} />
+                  <span className="text-muted-foreground">{label}</span>
+                  <span className={`ml-auto font-medium ${ok ? "text-green-400" : "text-red-400"}`}>
+                    {ok ? "Ready" : "N/A"}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Voice commands reference */}
+          <div className="space-y-2 pt-1 border-t border-border">
+            <Label className="text-xs text-muted-foreground">Voice Commands</Label>
+            <div className="flex flex-wrap gap-1.5">
+              {[
+                "go to lobby", "open settings", "play ai",
+                "scroll down", "click resign", "accept", "decline",
+              ].map((cmd) => (
+                <span
+                  key={cmd}
+                  className="px-2 py-0.5 rounded-md bg-muted text-[11px] font-mono text-muted-foreground"
+                >
+                  {cmd}
+                </span>
+              ))}
+            </div>
           </div>
 
         </CardContent>

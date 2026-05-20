@@ -24,10 +24,12 @@ interface AIControlState {
   transcript: string;
   commandHistory: string[];
   platform: typeof platform;
+  showPopup: boolean;
 
   toggleVoice: () => void;
   toggleGesture: () => void;
   toggleGaze: () => void;
+  setShowPopup: (v: boolean) => void;
   reportCursor: (pos: CursorPos | null) => void;
   reportDwell: (progress: number) => void;
   reportPinch: (pinching: boolean) => void;
@@ -49,7 +51,15 @@ export function AIControlProvider({ children }: { children: ReactNode }) {
   const [isPinching, setIsPinching] = useState(false);
   const [transcript, setTranscript] = useState("");
   const [commandHistory, setCommandHistory] = useState<string[]>([]);
+  const [showPopup, setShowPopupState] = useState(() => {
+    try { return localStorage.getItem("ai-control-show-popup") === "true"; } catch { return false; }
+  });
   const [, navigate] = useLocation();
+
+  const setShowPopup = useCallback((v: boolean) => {
+    setShowPopupState(v);
+    try { localStorage.setItem("ai-control-show-popup", String(v)); } catch { /* ignore */ }
+  }, []);
 
   // Register navigation handler once
   useEffect(() => {
@@ -114,7 +124,9 @@ export function AIControlProvider({ children }: { children: ReactNode }) {
         voiceStatus, cameraStatus, cameraError,
         cursor, dwellProgress, isPinching,
         transcript, commandHistory, platform,
+        showPopup,
         toggleVoice, toggleGesture, toggleGaze,
+        setShowPopup,
         reportCursor, reportDwell, reportPinch, reportCameraStatus, triggerClick,
       }}
     >

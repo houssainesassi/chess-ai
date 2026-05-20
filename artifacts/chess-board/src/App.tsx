@@ -20,7 +20,7 @@ import OnboardingPage from "@/pages/onboarding";
 import MessagesPage from "@/pages/messages";
 import LeaderboardPage from "@/pages/leaderboard";
 import { SocketNotificationProvider } from "@/hooks/use-socket-notifications";
-import { AIControlProvider } from "@/contexts/ai-control-context";
+import { AIControlProvider, useAIControl } from "@/contexts/ai-control-context";
 import { AIControlWidget } from "@/components/ai-control/AIControlWidget";
 import { GlobalCursorOverlay } from "@/components/ai-control/GlobalCursorOverlay";
 
@@ -67,6 +67,12 @@ function Router() {
   );
 }
 
+function ConditionalAIWidget() {
+  const { showPopup } = useAIControl();
+  if (!showPopup) return null;
+  return <AIControlWidget />;
+}
+
 function AppInner() {
   return (
     <AIControlProvider>
@@ -75,7 +81,7 @@ function AppInner() {
           <Router />
         </SocketNotificationProvider>
         <GlobalCursorOverlay />
-        <AIControlWidget />
+        <ConditionalAIWidget />
       </WouterRouter>
     </AIControlProvider>
   );
