@@ -122,7 +122,7 @@ router.post("/friends/request", requireAuth, async (req, res) => {
 
 router.post("/friends/accept/:requestId", requireAuth, async (req, res) => {
   const userId = (req as any).userId as string;
-  const requestId = req.params.requestId;
+  const requestId = req.params.requestId as string;
   try {
     const [request] = await db.select().from(friendRequestsTable).where(eq(friendRequestsTable.id, requestId));
     if (!request || request.toUserId !== userId) {
@@ -148,7 +148,7 @@ router.post("/friends/accept/:requestId", requireAuth, async (req, res) => {
 
 router.post("/friends/decline/:requestId", requireAuth, async (req, res) => {
   const userId = (req as any).userId as string;
-  const requestId = req.params.requestId;
+  const requestId = req.params.requestId as string;
   try {
     const [request] = await db.select().from(friendRequestsTable).where(eq(friendRequestsTable.id, requestId));
     if (!request || request.toUserId !== userId) {
@@ -165,7 +165,7 @@ router.post("/friends/decline/:requestId", requireAuth, async (req, res) => {
 
 router.delete("/friends/:friendUserId", requireAuth, async (req, res) => {
   const userId = (req as any).userId as string;
-  const friendUserId = req.params.friendUserId;
+  const friendUserId = req.params.friendUserId as string;
   try {
     await db.delete(friendRequestsTable).where(
       or(
@@ -246,7 +246,7 @@ router.post("/friends/invite/decline", requireAuth, async (req, res) => {
 
 router.post("/challenge/:toUserId", requireAuth, async (req, res) => {
   const userId = (req as any).userId as string;
-  const toUserId = req.params.toUserId;
+  const toUserId = req.params.toUserId as string;
   if (!toUserId || toUserId === userId) { res.status(400).json({ error: "validation_error", message: "Invalid target" }); return; }
   try {
     const [targetUser] = await db.select().from(usersTable).where(eq(usersTable.id, toUserId));

@@ -40,7 +40,7 @@ router.post("/notifications/read-all", requireAuth, async (req, res) => {
 
 router.post("/notifications/:id/read", requireAuth, async (req, res) => {
   const userId = (req as any).userId as string;
-  const notifId = req.params.id;
+  const notifId = req.params.id as string;
   try {
     await db
       .update(notificationsTable)

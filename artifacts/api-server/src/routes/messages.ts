@@ -83,7 +83,7 @@ router.get("/messages", requireAuth, async (req, res) => {
 
 router.get("/messages/:partnerId", requireAuth, async (req, res) => {
   const userId = (req as any).userId as string;
-  const partnerId = req.params.partnerId;
+  const partnerId = req.params.partnerId as string;
 
   try {
     const messages = await db
@@ -112,7 +112,7 @@ router.get("/messages/:partnerId", requireAuth, async (req, res) => {
 
 router.post("/messages/:partnerId", requireAuth, async (req, res) => {
   const userId = (req as any).userId as string;
-  const partnerId = req.params.partnerId;
+  const partnerId = req.params.partnerId as string;
   const { message } = req.body as { message?: string };
 
   if (!message || typeof message !== "string" || !message.trim()) {
@@ -153,7 +153,7 @@ router.post("/messages/:partnerId", requireAuth, async (req, res) => {
 
 router.post("/messages/:partnerId/seen", requireAuth, async (req, res) => {
   const userId = (req as any).userId as string;
-  const partnerId = req.params.partnerId;
+  const partnerId = req.params.partnerId as string;
 
   try {
     await db
