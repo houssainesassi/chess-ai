@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState } from "react";
+import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { api, type PlayerStatus } from "@/lib/api";
 import { io, Socket } from "socket.io-client";
+import { MessageCircle } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 function formatLastSeen(dateStr: string | null, isOnline: boolean): string {
   if (isOnline) return "Online now";
@@ -39,6 +42,7 @@ function StatusDot({ online }: { online: boolean }) {
 
 export default function PlayersPage() {
   const { token } = useAuth();
+  const [, setLocation] = useLocation();
   const [players, setPlayers] = useState<PlayerStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -111,7 +115,7 @@ export default function PlayersPage() {
                 Online — {online.length}
               </p>
               {online.map((p) => (
-                <PlayerRow key={p.id} player={p} />
+                <PlayerRow key={p.id} player={p} onMessage={(id) => setLocation(`/messages/${id}`)} />
               ))}
               {offline.length > 0 && (
                 <div className="pt-4 pb-1">
@@ -123,7 +127,7 @@ export default function PlayersPage() {
             </>
           )}
           {offline.map((p) => (
-            <PlayerRow key={p.id} player={p} />
+            <PlayerRow key={p.id} player={p} onMessage={(id) => setLocation(`/messages/${id}`)} />
           ))}
         </div>
       )}
@@ -131,7 +135,7 @@ export default function PlayersPage() {
   );
 }
 
-function PlayerRow({ player }: { player: PlayerStatus }) {
+function PlayerRow({ player, onMessage }: { player: PlayerStatus; onMessage: (id: string) => void }) {
   const displayName = player.nickname || player.username;
 
   return (
@@ -151,9 +155,20 @@ function PlayerRow({ player }: { player: PlayerStatus }) {
         </p>
       </div>
 
-      <div className="text-right shrink-0">
-        <p className="text-sm font-semibold">{player.wins}</p>
-        <p className="text-xs text-muted-foreground">wins</p>
+      <div className="flex items-center gap-3 shrink-0">
+        <div className="text-right">
+          <p className="text-sm font-semibold">{player.wins}</p>
+          <p className="text-xs text-muted-foreground">wins</p>
+        </div>
+        <Button
+          size="icon"
+          variant="ghost"
+          className="h-8 w-8 text-muted-foreground hover:text-foreground"
+          title={`Message ${displayName}`}
+          onClick={() => onMessage(player.id)}
+        >
+          <MessageCircle className="w-4 h-4" />
+        </Button>
       </div>
     </div>
   );
